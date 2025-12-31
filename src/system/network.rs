@@ -1,5 +1,8 @@
+#[cfg(windows)]
 use std::fs::OpenOptions;
+#[cfg(windows)]
 use std::io::{Read, Write};
+#[cfg(windows)]
 use std::path::PathBuf;
 
 #[cfg(windows)]
