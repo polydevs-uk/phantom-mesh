@@ -30,8 +30,10 @@ lru = "0.16.2"
 rand_core = "0.6.4"
 obfstr = "0.4.4"
 chrono = "0.4.42"
-arti-client = "0.37.0"
+arti-client = { version = "0.37.0", features = ["onion-service-service", "onion-service-client"] }
 tor-rtcompat = { version = "0.37.0", features = ["tokio", "native-tls"] }
+tor-hsservice = "0.37.0"
+tor-cell = "0.37.0"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"
