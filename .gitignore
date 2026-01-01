@@ -1,1 +1,40 @@
+# Rust Build Artifacts
 /target
+**/*.rs.bk
+
+# OS Generated
+.DS_Store
+.DS_Store?
+._*
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE Settings
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Keys & Secrets (CRITICAL SECURITY)
+*.key
+sys_keys.dat
+connection.dat
+*.pem
+*.der
+
+# Logs & Temp
+*.log
+tmp/
+temp/
+*.tmp
+
+# Databases & Runtime
+*.db
+*.sqlite
+wallet.json
+config.json
+
+# Go (Previous legacy)
+vendor/
+go.sum
