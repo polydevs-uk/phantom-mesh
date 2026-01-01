@@ -1,5 +1,5 @@
 # Rust Build Artifacts
-/target
+target/
 **/*.rs.bk
 
 # OS Generated
