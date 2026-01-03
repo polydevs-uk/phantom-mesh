@@ -35,6 +35,7 @@ tor-rtcompat = { version = "0.37.0", features = ["tokio", "native-tls"] }
 tor-hsservice = "0.37.0"
 tor-cell = "0.37.0"
 sntpc = { version = "0.3.6", features = ["std", "utils"] }
+sha1 = "0.10.6"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.52"

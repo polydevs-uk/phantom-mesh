@@ -2597,6 +2597,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sha1",
  "sha2",
  "sntpc",
  "sysinfo 0.37.2",
