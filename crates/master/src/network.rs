@@ -4,18 +4,73 @@ use tokio::net::TcpStream;
 use uuid::Uuid;
 use protocol::{MeshMsg, PeerInfo, GossipMsg, Registration, CommandPayload, GhostPacket};
 use ed25519_dalek::{Signer, SigningKey};
+use tokio::io::{AsyncRead, AsyncWrite};
 
 // Mocking the P2P Client for now (Direct connection via Tor proxy in real life)
 // Ghost connects, drops payload, disconnects.
-pub struct GhostClient {
-    // In real P2P, this would be an Arti Tor DataStream
-    ws_stream: WebSocketStream<MaybeTlsStream<TcpStream>>, 
+// Refactored to be Generic over the Stream Type (S)
+// This allows supporting both direct TCP/TLS (Bootstrap) and SOCKS5 (Hidden Services).
+pub struct GhostClient<S> {
+    ws_stream: WebSocketStream<S>, 
 }
 
-impl GhostClient {
+use x25519_dalek::{EphemeralSecret, PublicKey};
+use rand_core::OsRng;
+
+impl GhostClient<MaybeTlsStream<TcpStream>> {
     pub async fn connect(url: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let (ws_stream, _) = connect_async(url).await?;
         Ok(GhostClient { ws_stream })
+    }
+}
+
+impl GhostClient<tokio_socks::tcp::Socks5Stream<TcpStream>> {
+    pub async fn connect_via_tor(onion_host: &str, port: u16, proxy_addr: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        use tokio_socks::tcp::Socks5Stream;
+        use tokio_tungstenite::client_async;
+        use url::Url;
+
+        println!("Connecting via SOCKS5 Proxy: {} -> {}:{}", proxy_addr, onion_host, port);
+        
+        // 1. Connect via SOCKS5 to Onion Service
+        let stream = Socks5Stream::connect(proxy_addr, (onion_host, port)).await?;
+        
+        // 2. Upgrade to WebSocket
+        let url_str = format!("ws://{}:{}/ws", onion_host, port);
+        
+        let (ws_stream, _) = client_async(url_str, stream).await?;
+        
+        Ok(GhostClient { ws_stream })
+    }
+}
+
+// Common methods for any valid Stream
+impl<S> GhostClient<S> 
+where S: AsyncRead + AsyncWrite + Unpin 
+{
+    pub async fn handshake(&mut self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+         let mut rng = OsRng;
+         let my_secret = EphemeralSecret::random_from_rng(&mut rng);
+         let my_public = PublicKey::from(&my_secret);
+         
+         let msg = MeshMsg::ClientHello { 
+             ephemeral_pub: hex::encode(my_public.as_bytes()) 
+         };
+         self.ws_stream.send(Message::Text(serde_json::to_string(&msg)?.into())).await?;
+         
+         // Wait for ServerHello
+         while let Some(res) = self.ws_stream.next().await {
+            if let Ok(Message::Text(txt)) = res {
+                 if let Ok(MeshMsg::ServerHello { ephemeral_pub }) = serde_json::from_str::<MeshMsg>(&txt) {
+                     let server_pub_bytes = hex::decode(ephemeral_pub)?;
+                     let server_pub_arr: [u8; 32] = server_pub_bytes.try_into().map_err(|_| "Invalid Key Length")?;
+                     let server_public = PublicKey::from(server_pub_arr);
+                     let shared_secret = my_secret.diffie_hellman(&server_public);
+                     return Ok(shared_secret.as_bytes().to_vec());
+                 }
+            }
+         }
+         Err("Handshake Timeout/Failure".into())
     }
 
     pub async fn register(&mut self, pub_hex: &str) -> Result<(), Box<dyn std::error::Error>> {

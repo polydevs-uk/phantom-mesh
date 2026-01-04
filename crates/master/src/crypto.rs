@@ -43,5 +43,6 @@ pub fn create_payload(cmd_str: String) -> CommandPayload {
         action,
         parameters,
         execute_at,
+        reply_to: None, // Master listener not yet implemented
     }
 }

