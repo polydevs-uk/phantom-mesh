@@ -13,7 +13,7 @@ fn main() {
     // CARGO_MANIFEST_DIR is crates/bot.
     
     let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let workspace_root = Path::new(&crate_dir).parent().unwrap().parent().unwrap();
+    let workspace_root = Path::new(&crate_dir).parent().unwrap().parent().unwrap().parent().unwrap();
     // Use the central keys directory
     let pub_key_path = workspace_root.join("keys").join("master.pub");
 

@@ -507,11 +507,58 @@ dependencies = [
 ]
 
 [[package]]
-name = "bot"
+name = "bot_linux"
 version = "0.2.0"
 dependencies = [
  "arti-client",
  "base64 0.21.7",
+ "bootstrap",
+ "chacha20poly1305",
+ "chrono",
+ "clap",
+ "ed25519-dalek",
+ "futures-util",
+ "hex",
+ "hostname",
+ "lru",
+ "native-tls",
+ "ntapi",
+ "num_cpus",
+ "obfstr",
+ "once_cell",
+ "protocol",
+ "rand 0.8.5",
+ "rand_core 0.6.4",
+ "rayon",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha1",
+ "sha2",
+ "sntpc",
+ "socket2 0.6.1",
+ "sysinfo 0.37.2",
+ "tokio",
+ "tokio-native-tls",
+ "tokio-tungstenite 0.20.1",
+ "tor-cell",
+ "tor-hsservice",
+ "tor-rtcompat",
+ "url",
+ "walkdir",
+ "winapi",
+ "winreg 0.52.0",
+ "x25519-dalek",
+ "zip",
+]
+
+[[package]]
+name = "bot_windows"
+version = "0.2.0"
+dependencies = [
+ "arti-client",
+ "base64 0.21.7",
+ "bootstrap",
  "chacha20poly1305",
  "chrono",
  "clap",

