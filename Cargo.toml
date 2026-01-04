@@ -6,7 +6,7 @@ members = [
     "crates/bootstrap",
     "crates/master",
     "crates/protocol"
-]
+, "test_feature"]
 
 [profile.release]
 strip = true       # Strip symbols
