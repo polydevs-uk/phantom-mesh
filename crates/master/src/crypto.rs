@@ -25,16 +25,23 @@ pub fn load_key(path: &PathBuf) -> SigningKey {
     SigningKey::from_bytes(&arr)
 }
 
-pub fn create_payload(action: String) -> CommandPayload {
+pub fn create_payload(cmd_str: String) -> CommandPayload {
     // Default ExecuteAt = Now + 60s
     let execute_at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs() as i64 + 60;
-        
+    
+    // Split "ACTION PARAMETERS"
+    let (action, parameters) = match cmd_str.split_once(' ') {
+        Some((a, p)) => (a.to_string(), p.to_string()),
+        None => (cmd_str, String::new()),
+    };
+
     CommandPayload {
         id: uuid::Uuid::new_v4().to_string(),
         action,
+        parameters,
         execute_at,
     }
 }

