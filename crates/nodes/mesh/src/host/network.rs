@@ -16,16 +16,12 @@ pub async fn bind_camouflage_socket() -> UdpSocket {
     
     for port in ports {
         let addr = format!("0.0.0.0:{}", port);
-        // On Linux/macOS, low ports require root. If we are not root, this will fail gracefully.
-        // And we just fallback to next or random.
         if let Ok(socket) = UdpSocket::bind(&addr).await {
-            // println!("[+] Camouflage Port Bound: {}", port); // Keep it silent in prod usually
             return socket;
         }
     }
     
     // Fallback: Bind to any available port (Random)
-    // println!("[!] Using Random Port");
     UdpSocket::bind("0.0.0.0:0").await.expect("Fatal: Failed to bind any UDP port")
 }
 

@@ -7,8 +7,7 @@ members = [
     
     # Node applications
     "crates/nodes/mesh",
-    "crates/nodes/edge",
-    "crates/nodes/master",
+    "crates/nodes/phantom",
     
     # Standalone tools
     "crates/tools/loader",

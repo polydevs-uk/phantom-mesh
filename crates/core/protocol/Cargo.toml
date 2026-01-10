@@ -26,6 +26,6 @@ snow = "0.10" # Noise Protocol Framework
 bytes = "1.11.0"
 tokio = { version = "1", features = ["full"] } # Async runtime
 thiserror = "1.0"
-rcgen = "0.14" # Self-signed cert generation for QUIC
+rcgen = "0.14" # Self-signed cert generation for        
 tokio-rustls = "0.26"
 blake3 = "1.8.2"

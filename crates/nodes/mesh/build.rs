@@ -39,6 +39,6 @@ fn main() {
         let content = fs::read_to_string(&swarm_key_path).expect("Failed to read swarm.key");
         println!("cargo:rustc-env=SWARM_KEY={}", content.trim());
     } else {
-        println!("cargo:rustc-env=SWARM_KEY=0000000000000000000000000000000000000000000000000000000000000000"); 
+        println!("cargo:rustc-env=SWARM_KEY=0000000000000000000000000000000000000000000000000000000000000000"); // Fail open/secure?
     }
 }

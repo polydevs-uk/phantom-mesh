@@ -1,97 +1,173 @@
-//! NAT Hole Punch Arbiter - RTT measurement and burst synchronization
+use libp2p::{
+    gossipsub, noise, swarm::NetworkBehaviour, swarm::SwarmEvent, tcp, yamux, Swarm, SwarmBuilder,
+};
+use libp2p::futures::StreamExt;
+use std::time::Duration;
+use tokio::sync::mpsc;
+use protocol::SignalEnvelope;
 
-use std::collections::HashMap;
-use protocol::SignalMsg;
+// Layer 2: Signaling Manager
 
-#[derive(Debug, Clone)]
-struct PeerRtt {
-    last_ping_sent: u64,
-    rtt_ms: Option<u64>,
+#[derive(NetworkBehaviour)]
+#[behaviour(out_event = "MyBehaviourEvent")]
+pub struct MyBehaviour {
+    pub gossipsub: gossipsub::Behaviour,
 }
 
-pub struct PunchArbiter {
-    rtt_cache: HashMap<String, PeerRtt>,
+#[derive(Debug)]
+pub enum MyBehaviourEvent {
+    Gossipsub(gossipsub::Event),
 }
 
-impl PunchArbiter {
-    pub fn new() -> Self {
-        Self { rtt_cache: HashMap::new() }
+impl From<gossipsub::Event> for MyBehaviourEvent {
+    fn from(event: gossipsub::Event) -> Self {
+        MyBehaviourEvent::Gossipsub(event)
+    }
+}
+
+pub struct SignalingManager {
+    swarm: Swarm<MyBehaviour>,
+    topic: gossipsub::IdentTopic,
+    pub command_tx: mpsc::Sender<SignalingCommand>,
+    command_rx: mpsc::Receiver<SignalingCommand>,
+    pub signal_output_tx: mpsc::Sender<(String, SignalEnvelope)>, // (PeerId, Envelope)
+}
+
+
+
+pub enum SignalingCommand {
+    PublishSignal(SignalEnvelope),
+    Dial(libp2p::Multiaddr),
+    Shutdown,
+}
+
+impl SignalingManager {
+    pub fn new(local_key: libp2p::identity::Keypair, topic_str: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        let swarm = SwarmBuilder::with_existing_identity(local_key)
+            .with_tokio()
+            .with_tcp(tcp::Config::default(), noise::Config::new, yamux::Config::default)?
+            .with_behaviour(|key: &libp2p::identity::Keypair| {
+                 let message_id_fn = |message: &gossipsub::Message| {
+                     let mut s = std::collections::hash_map::DefaultHasher::new();
+                     use std::hash::{Hash, Hasher};
+                     message.data.hash(&mut s);
+                     gossipsub::MessageId::from(s.finish().to_string())
+                 };
+                 let gossipsub_config = gossipsub::ConfigBuilder::default()
+                     .heartbeat_interval(Duration::from_secs(1)) 
+                     .validation_mode(gossipsub::ValidationMode::Strict) 
+                     .message_id_fn(message_id_fn) 
+                     .build()
+                     .map_err(|msg| std::io::Error::new(std::io::ErrorKind::Other, msg))?;
+                 let gossipsub = gossipsub::Behaviour::new(
+                     gossipsub::MessageAuthenticity::Signed(key.clone()),
+                     gossipsub_config,
+                 )?;
+                 Ok(MyBehaviour { gossipsub })
+            })?
+            .build();
+            
+        let topic = gossipsub::IdentTopic::new(topic_str);
+        
+        let (tx, rx) = mpsc::channel(32);
+        let (out_tx, _) = mpsc::channel(32); // Placeholder, run_loop will receive clone or we return receiver
+        
+        Ok(Self {
+            swarm,
+            topic,
+            command_tx: tx,
+            command_rx: rx,
+            signal_output_tx: out_tx, // Temporary, will fix interface below
+        })
     }
     
-    pub fn record_ping_sent(&mut self, peer_id: &str, timestamp: u64) {
-        self.rtt_cache.insert(peer_id.to_string(), PeerRtt {
-            last_ping_sent: timestamp,
-            rtt_ms: None,
-        });
+    // Better API: new returns (Self, Sender, Receiver)
+    pub fn new_with_channel(local_key: libp2p::identity::Keypair, topic_str: &str, listen_port: u16) 
+        -> Result<(Self, mpsc::Sender<SignalingCommand>, mpsc::Receiver<(String, SignalEnvelope)>), Box<dyn std::error::Error>> 
+    {
+         // Same setup
+         let swarm = SwarmBuilder::with_existing_identity(local_key)
+            .with_tokio()
+            .with_tcp(tcp::Config::default(), noise::Config::new, yamux::Config::default)?
+            .with_behaviour(|key: &libp2p::identity::Keypair| {
+                 let message_id_fn = |message: &gossipsub::Message| {
+                     let mut s = std::collections::hash_map::DefaultHasher::new();
+                     use std::hash::{Hash, Hasher};
+                     message.data.hash(&mut s);
+                     gossipsub::MessageId::from(s.finish().to_string())
+                 };
+                 let gossipsub_config = gossipsub::ConfigBuilder::default()
+                     .heartbeat_interval(Duration::from_secs(1)) 
+                     .validation_mode(gossipsub::ValidationMode::Strict) 
+                     .message_id_fn(message_id_fn) 
+                     .build()
+                     .map_err(|msg| std::io::Error::new(std::io::ErrorKind::Other, msg))?;
+                 let gossipsub = gossipsub::Behaviour::new(
+                     gossipsub::MessageAuthenticity::Signed(key.clone()),
+                     gossipsub_config,
+                 )?;
+                 Ok(MyBehaviour { gossipsub })
+            })?
+            .build();
+            
+        let topic = gossipsub::IdentTopic::new(topic_str);
+        
+        let (cmd_tx, cmd_rx) = mpsc::channel(32);
+        let (sig_tx, sig_rx) = mpsc::channel(32);
+        
+        let mut manager = Self {
+            swarm,
+            topic,
+            command_tx: cmd_tx.clone(),
+            command_rx: cmd_rx,
+            signal_output_tx: sig_tx,
+        };
+        
+        // Listen on specific port
+        let addr = format!("/ip4/0.0.0.0/tcp/{}", listen_port).parse()?;
+        manager.swarm.listen_on(addr)?;
+        
+        Ok((manager, cmd_tx, sig_rx))
     }
-    
-    pub fn process_pong(&mut self, peer_id: &str, _pong_timestamp: u64) -> Option<u64> {
-        if let Some(entry) = self.rtt_cache.get_mut(peer_id) {
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_millis() as u64;
-            let rtt = now.saturating_sub(entry.last_ping_sent);
-            entry.rtt_ms = Some(rtt);
-            return Some(rtt);
+
+    pub async fn run_loop(mut self) {
+        let _ = self.swarm.behaviour_mut().gossipsub.subscribe(&self.topic);
+        // listen_on is called in new() now to ensure binding before return.
+
+        
+        loop {
+            tokio::select! {
+                event = self.swarm.select_next_some() => match event {
+                    SwarmEvent::Behaviour(MyBehaviourEvent::Gossipsub(gossipsub::Event::Message {
+                         propagation_source: peer_id,
+                         message_id: _id,
+                         message,
+                    })) => {
+                        println!("[Signaling] Received Msg from {}: {} bytes", peer_id, message.data.len());
+                        if let Ok(envelope) = bincode::deserialize::<SignalEnvelope>(&message.data) {
+                            let _ = self.signal_output_tx.send((peer_id.to_string(), envelope)).await;
+                        }
+                    },
+                    // ...
+                    SwarmEvent::NewListenAddr { address, .. } => {
+                        println!("[Signaling] Listening on {:?}", address);
+                    },
+                    _ => {}
+                },
+                
+                cmd = self.command_rx.recv() => match cmd {
+                    Some(SignalingCommand::PublishSignal(envelope)) => {
+                        if let Ok(data) = bincode::serialize(&envelope) {
+                            let _ = self.swarm.behaviour_mut().gossipsub.publish(self.topic.clone(), data);
+                        }
+                    },
+                    Some(SignalingCommand::Dial(addr)) => {
+                        println!("[Signaling] Dialing {}", addr);
+                        let _ = self.swarm.dial(addr);
+                    },
+                    Some(SignalingCommand::Shutdown) | None => break,
+                }
+            }
         }
-        None
     }
-    
-    pub fn get_rtt(&self, peer_id: &str) -> Option<u64> {
-        self.rtt_cache.get(peer_id).and_then(|p| p.rtt_ms)
-    }
-    
-    /// Calculate synchronized fire commands with RTT compensation
-    pub fn calculate_arbiter_commands(
-        &self,
-        peer_a_id: &str,
-        peer_a_ip: &str,
-        peer_a_port: u16,
-        peer_b_id: &str,
-        peer_b_ip: &str,
-        peer_b_port: u16,
-    ) -> Option<(SignalMsg, SignalMsg)> {
-        let rtt_a = self.get_rtt(peer_a_id)?;
-        let rtt_b = self.get_rtt(peer_b_id)?;
-        
-        let delay_a = rtt_a / 2;
-        let delay_b = rtt_b / 2;
-        let t_safe = std::cmp::max(rtt_a, rtt_b) * 3 + 500;
-        
-        let fire_delay_a = t_safe.saturating_sub(delay_a);
-        let fire_delay_b = t_safe.saturating_sub(delay_b);
-        let burst_duration = 1000u64;
-        
-        let cmd_a = SignalMsg::ArbiterCommand {
-            target_ip: peer_b_ip.to_string(),
-            target_port: peer_b_port,
-            fire_delay_ms: fire_delay_a,
-            burst_duration_ms: burst_duration,
-        };
-        
-        let cmd_b = SignalMsg::ArbiterCommand {
-            target_ip: peer_a_ip.to_string(),
-            target_port: peer_a_port,
-            fire_delay_ms: fire_delay_b,
-            burst_duration_ms: burst_duration,
-        };
-        
-        Some((cmd_a, cmd_b))
-    }
-}
-
-pub fn now_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_millis() as u64
-}
-
-pub fn create_ping() -> SignalMsg {
-    SignalMsg::Ping { timestamp: now_ms() }
-}
-
-pub fn create_pong(ping_timestamp: u64) -> SignalMsg {
-    SignalMsg::Pong { timestamp: ping_timestamp }
 }
