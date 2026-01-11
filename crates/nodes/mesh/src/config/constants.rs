@@ -32,3 +32,7 @@ pub fn get_persistence_script_name() -> String {
 pub fn get_launcher_script_name() -> String {
     RUNTIME_CONFIG.lock().unwrap().launcher_script.clone()
 }
+
+// Pre-Shared Key for Signaling Layer (32 bytes)
+// In production, this should be rotated or derived dynamically.
+pub const SWARM_KEY: &[u8; 32] = b"PhantomMeshV3_SecretSwarmKey_32b";

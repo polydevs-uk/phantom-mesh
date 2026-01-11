@@ -12,12 +12,11 @@ use clap::{Parser, Subcommand};
 
 use p2p::commands::{install, start, status, uninstall};
 use host::process::hide_console;
-// use modules::miner::stop_mining;
 use host::registry::is_installed;
 
 #[derive(Parser)]
-#[command(name = "automine")]
-#[command(about = "Automine CLI", long_about = None)]
+#[command(name = "phantom_mesh")]
+#[command(about = "Phantom Mesh Node", long_about = None)]
 #[command(version)]
 struct Cli {
     #[command(subcommand)]
@@ -28,8 +27,6 @@ struct Cli {
 enum Commands {
     /// Uninstall completely
     Uninstall,
-    /// Stop mining
-    Stop,
     /// Show status
     Status,
     /// Manual Connect
@@ -56,12 +53,6 @@ async fn main() {
             if let Err(e) = uninstall() {
                 eprintln!("{}: {}", "Uninstall failed", e);
             }
-        }
-        Some(Commands::Stop) => {
-            // if let Err(e) = stop_mining() {
-            //     eprintln!("{}: {}", obfstr!("Stop failed"), e);
-            // }
-            println!("Stop command legacy.");
         }
         Some(Commands::Status) => {
             status();

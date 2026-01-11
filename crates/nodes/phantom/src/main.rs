@@ -23,13 +23,13 @@ enum Commands {
     },
     /// List active bots from Bootstrap Registry
     List {
-        #[arg(short, long, default_value = "ws://localhost:8080")]
-        bootstrap: String,
+        #[arg(short, long, env = "PHANTOM_BOOTSTRAP")]
+        bootstrap: Option<String>,
     },
     /// Target a specific bot (Not Impl)
     Target {
-        #[arg(short, long, default_value = "ws://localhost:8080")]
-        bootstrap: String,
+        #[arg(short, long, env = "PHANTOM_BOOTSTRAP")]
+        bootstrap: Option<String>,
         #[arg(short, long, default_value = "ghost.key")]
         key: PathBuf,
         #[arg(long)]
@@ -39,8 +39,8 @@ enum Commands {
     },
     /// Broadcast Gossip to the Mesh
     Broadcast {
-        #[arg(short, long, default_value = "ws://localhost:8080")]
-        bootstrap: String,
+        #[arg(short, long, env = "PHANTOM_BOOTSTRAP")]
+        bootstrap: Option<String>,
         #[arg(short, long, default_value = "ghost.key")]
         key: PathBuf,
         #[arg(long)]
@@ -48,8 +48,8 @@ enum Commands {
     },
     /// Load a module onto bots
     Load {
-        #[arg(short, long, default_value = "ws://localhost:8080")]
-        bootstrap: String,
+        #[arg(short, long, env = "PHANTOM_BOOTSTRAP")]
+        bootstrap: Option<String>,
         #[arg(short, long, default_value = "ghost.key")]
         key: PathBuf,
         #[arg(long)]
@@ -59,8 +59,8 @@ enum Commands {
     },
     /// Start a loaded module
     Start {
-        #[arg(short, long, default_value = "ws://localhost:8080")]
-        bootstrap: String,
+        #[arg(short, long, env = "PHANTOM_BOOTSTRAP")]
+        bootstrap: Option<String>,
         #[arg(short, long, default_value = "ghost.key")]
         key: PathBuf,
         #[arg(long)]
