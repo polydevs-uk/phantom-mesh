@@ -20,8 +20,7 @@ pub struct GhostClient {
 }
 
 impl GhostClient {
-    pub async fn new() -> Result<Self, Box<dyn Error>> {
-        let id_keys = Keypair::generate_ed25519();
+    pub async fn new(id_keys: Keypair) -> Result<Self, Box<dyn Error>> {
         let local_peer_id = PeerId::from(id_keys.public());
         println!("[Ghost] Identity: {}", local_peer_id);
 
@@ -123,5 +122,9 @@ impl GhostClient {
         tokio::time::sleep(Duration::from_millis(500)).await;
         
         Ok(())
+    }
+
+    pub fn get_peer_id(&self) -> String {
+        self.swarm.local_peer_id().to_string()
     }
 }

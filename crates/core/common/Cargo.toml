@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 # Async Runtime
-tokio = { version = "1", features = ["time"] }
+tokio = { version = "1", features = ["full"] }
 
 # Time Sync
 sntpc = { version = "0.3.6", features = ["std", "utils"] }
@@ -19,3 +19,5 @@ sha1 = "0.10"
 sha2 = "0.10"
 hex = "0.4"
 mainline = "1.0"
+socket2 = "0.5"
+local-ip-address = "0.6"

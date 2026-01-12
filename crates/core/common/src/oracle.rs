@@ -8,30 +8,21 @@ const SLOT_DURATION: u64 = 4 * 3600;
 pub struct Oracle;
 
 impl Oracle {
-    /// Returns list of active InfoHashes (Current, +prev, +next for redundancy)
-    /// Returns 20-byte truncated SHA256 hashes compatible with Mainline DHT.
-    pub fn get_active_infohashes() -> Vec<[u8; 20]> {
-        let current_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
+    /// Returns the SINGLE active InfoHash based on synced time.
+    /// `synced_time_secs` should be obtained via NTP or HTTP Date header.
+    pub fn get_current_infohash(synced_time_secs: u64) -> [u8; 20] {
+        // Time-based Slot (4 Hours)
+        let current_slot = synced_time_secs / SLOT_DURATION;
+        Self::generate_hash(current_slot)
+    }
+    
+    /// Legacy: Get current using system time (use only if NTP sync failed)
+    pub fn get_current_infohash_local() -> [u8; 20] {
+        let current_time = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-
-        // Time-based Slot (4 Hours)
-        let current_slot = current_time / SLOT_DURATION;
-
-        // Overlapping Windows: [Prev, Current, Next]
-        let slots = vec![
-            current_slot.saturating_sub(1),
-            current_slot,
-            current_slot + 1
-        ];
-
-        let mut hashes = Vec::new();
-        for slot in slots {
-            hashes.push(Self::generate_hash(slot));
-        }
-        
-        hashes
+        Self::get_current_infohash(current_time)
     }
 
     /// Core Hash Generation

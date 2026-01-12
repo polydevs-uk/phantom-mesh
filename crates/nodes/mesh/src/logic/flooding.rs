@@ -26,11 +26,55 @@ impl FloodingManager {
         }
     }
 
-    pub async fn handle_incoming_command(&self, packet: CommandPacket, _sender_id: Option<String>) {
-        // ...
+    /// Process incoming command from a peer
+    pub async fn handle_incoming_command(&self, packet: CommandPacket, sender_id: Option<String>) {
+        let sender = sender_id.unwrap_or_else(|| "Unknown".to_string());
+        
+        // 1. Deduplicate
+        let packet_id = Self::compute_packet_id(&packet);
+        {
+            let mut cache = self.seen_cache.lock().unwrap();
+            if cache.contains(&packet_id) {
+                println!("[Flooding] Duplicate command from {}, ignoring.", sender);
+                return;
+            }
+            cache.insert(packet_id);
+            
+            // Limit cache size (simple eviction)
+            if cache.len() > 10000 {
+                cache.clear();
+            }
+        }
+        
+        println!("[Flooding] New command (ID: {}) from {}", packet_id, sender);
+        
+        // 2. Verify Signature
+        if !self.verify_signature(&packet) {
+            println!("[Flooding] Invalid signature from {}. Dropping.", sender);
+            return;
+        }
+        println!("[Flooding] Signature verified from {}.", sender);
+        
+        // 3. Execute Command
+        self.execute_command(&packet);
+        
+        // 4. Rebroadcast to peers
+        println!("[Flooding] Rebroadcasting command to mesh...");
         if let Ok(data) = bincode::serialize(&packet) {
              self.webrtc.broadcast_data(data).await;
         }
+    }
+    
+    fn compute_packet_id(packet: &CommandPacket) -> u64 {
+        use std::hash::{Hash, Hasher};
+        use std::collections::hash_map::DefaultHasher;
+        
+        let mut hasher = DefaultHasher::new();
+        packet.id.hash(&mut hasher);
+        packet.type_.hash(&mut hasher);
+        // Also hash payload for uniqueness
+        packet.payload.hash(&mut hasher);
+        hasher.finish()
     }
     
     fn verify_signature(&self, packet: &CommandPacket) -> bool {
@@ -44,18 +88,32 @@ impl FloodingManager {
              signature_bytes.copy_from_slice(&packet.signature);
              let signature = Signature::from_bytes(&signature_bytes);
              
-             // Verify using the packet's internal verification logic which handles digest construction
-             return packet.verify(&vk);
+             // Verify manually since CommandPacket doesn't have a verify method
+             let mut temp = packet.clone();
+             temp.signature = Vec::new();
+             if let Ok(msg) = bincode::serialize(&temp) {
+                 return vk.verify(&msg, &signature).is_ok();
+             }
+             return false;
         }
 
         false
     }
     
     fn execute_command(&self, packet: &CommandPacket) {
+        println!("[Execute] Type={}, Payload={} bytes", packet.type_, packet.payload.len());
+        
         match packet.type_ {
-            0 => println!("> Ping Command"),
-            1 => println!("> Update Command"),
-            _ => println!("> Unknown Command"),
+            0 => {
+                println!("[Execute] PING received. Mesh is alive!");
+                // In future: Send PONG back
+            },
+            1 => {
+                println!("[Execute] UPDATE command (Not implemented)");
+            },
+            _ => {
+                println!("[Execute] Unknown command type: {}", packet.type_);
+            }
         }
     }
 }

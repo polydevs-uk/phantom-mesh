@@ -640,16 +640,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b05b61dc5112cbb17e4b6cd61790d9845d13888356391624cbe7e41efeac1e75"
 
 [[package]]
-name = "colored"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "117725a109d387c937a1533ce01b450cbde6b88abceea8473c4d7a85853cda3c"
-dependencies = [
- "lazy_static",
- "windows-sys 0.52.0",
-]
-
-[[package]]
 name = "combine"
 version = "4.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -665,12 +655,14 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "hex",
+ "local-ip-address",
  "mainline",
  "serde",
  "serde_json",
  "sha1",
  "sha2",
  "sntpc",
+ "socket2 0.5.10",
  "tokio",
 ]
 
@@ -1699,6 +1691,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "hyper-rustls"
+version = "0.24.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec3efd23720e2049821a693cbc7e65ea87c72f1c58ff2f9522ff332b1491e590"
+dependencies = [
+ "futures-util",
+ "http",
+ "hyper",
+ "rustls 0.21.12",
+ "tokio",
+ "tokio-rustls 0.24.1",
+]
+
+[[package]]
 name = "hyper-tls"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2412,43 +2418,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6373607a59f0be73a39b6fe456b8192fcc3585f602af20751600e974dd455e77"
 
 [[package]]
-name = "loader"
-version = "0.1.0"
-dependencies = [
- "clap",
- "colored",
- "ipnet",
- "local-ip-address 0.5.7",
- "protocol",
- "rand 0.8.5",
- "reqwest",
- "serde",
- "serde_json",
- "stun",
- "thiserror 1.0.69",
- "tokio",
-]
-
-[[package]]
-name = "local-ip-address"
-version = "0.5.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "612ed4ea9ce5acfb5d26339302528a5e1e59dfed95e9e11af3c083236ff1d15d"
-dependencies = [
- "libc",
- "neli 0.6.5",
- "thiserror 1.0.69",
- "windows-sys 0.48.0",
-]
-
-[[package]]
 name = "local-ip-address"
 version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0a60bf300a990b2d1ebdde4228e873e8e4da40d834adbf5265f3da1457ede652"
 dependencies = [
  "libc",
- "neli 0.7.3",
+ "neli",
  "thiserror 2.0.17",
  "windows-sys 0.61.2",
 ]
@@ -2673,18 +2649,6 @@ dependencies = [
 
 [[package]]
 name = "neli"
-version = "0.6.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93062a0dce6da2517ea35f301dfc88184ce18d3601ec786a727a87bf535deca9"
-dependencies = [
- "byteorder",
- "libc",
- "log",
- "neli-proc-macros 0.1.4",
-]
-
-[[package]]
-name = "neli"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e23bebbf3e157c402c4d5ee113233e5e0610cc27453b2f07eefce649c7365dcc"
@@ -2695,21 +2659,8 @@ dependencies = [
  "getset",
  "libc",
  "log",
- "neli-proc-macros 0.2.2",
+ "neli-proc-macros",
  "parking_lot",
-]
-
-[[package]]
-name = "neli-proc-macros"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c8034b7fbb6f9455b2a96c19e6edf8dc9fc34c70449938d8ee3b4df363f61fe"
-dependencies = [
- "either",
- "proc-macro2",
- "quote",
- "serde",
- "syn 1.0.109",
 ]
 
 [[package]]
@@ -3161,11 +3112,10 @@ dependencies = [
  "hex",
  "hostname",
  "libp2p",
- "local-ip-address 0.6.8",
+ "local-ip-address",
  "log",
  "lru 0.16.2",
  "mainline",
- "native-tls",
  "ntapi",
  "num_cpus",
  "obfstr",
@@ -3185,11 +3135,9 @@ dependencies = [
  "sha2",
  "snow 0.10.0",
  "sntpc",
- "socket2 0.6.1",
  "stun",
  "sysinfo",
  "tokio",
- "tokio-native-tls",
  "tokio-rustls 0.24.1",
  "tokio-tungstenite",
  "url",
@@ -3379,8 +3327,7 @@ name = "propagator"
 version = "0.1.0"
 dependencies = [
  "env_logger",
- "loader",
- "local-ip-address 0.6.8",
+ "local-ip-address",
  "log",
  "tokio",
 ]
@@ -3678,6 +3625,7 @@ dependencies = [
  "http",
  "http-body",
  "hyper",
+ "hyper-rustls",
  "hyper-tls",
  "ipnet",
  "js-sys",
@@ -3687,6 +3635,7 @@ dependencies = [
  "once_cell",
  "percent-encoding",
  "pin-project-lite",
+ "rustls 0.21.12",
  "rustls-pemfile",
  "serde",
  "serde_json",
@@ -3695,6 +3644,7 @@ dependencies = [
  "system-configuration 0.5.1",
  "tokio",
  "tokio-native-tls",
+ "tokio-rustls 0.24.1",
  "tokio-util",
  "tower-service",
  "url",
@@ -3702,6 +3652,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-streams",
  "web-sys",
+ "webpki-roots",
  "winreg 0.50.0",
 ]
 
@@ -4665,10 +4616,11 @@ checksum = "212d5dcb2a1ce06d81107c3d0ffa3121fe974b73f068c8282cb1c32328113b6c"
 dependencies = [
  "futures-util",
  "log",
- "native-tls",
+ "rustls 0.21.12",
  "tokio",
- "tokio-native-tls",
+ "tokio-rustls 0.24.1",
  "tungstenite",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -4740,8 +4692,8 @@ dependencies = [
  "http",
  "httparse",
  "log",
- "native-tls",
  "rand 0.8.5",
+ "rustls 0.21.12",
  "sha1",
  "thiserror 1.0.69",
  "url",
@@ -5022,6 +4974,12 @@ checksum = "36a29fc0408b113f68cf32637857ab740edfafdf460c326cd2afaa2d84cc05dc"
 dependencies = [
  "rustls-pki-types",
 ]
+
+[[package]]
+name = "webpki-roots"
+version = "0.25.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f20c57d8d7db6d3b86154206ae5d8fba62dd39573114de97c2cb0578251f8e1"
 
 [[package]]
 name = "webrtc"

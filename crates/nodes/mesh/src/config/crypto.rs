@@ -31,3 +31,13 @@ pub fn load_or_generate_keys(path: PathBuf) -> AgentIdentity {
         keypair,
     }
 }
+
+pub fn generate_ephemeral() -> AgentIdentity {
+    let mut csprng = OsRng;
+    let keypair = SigningKey::generate(&mut csprng);
+    
+    AgentIdentity {
+        pub_hex: hex::encode(keypair.verifying_key().to_bytes()),
+        keypair,
+    }
+}

@@ -42,6 +42,12 @@ impl TimeKeeper {
 
     /// Get current verified UTC time
     pub fn utc_now() -> DateTime<Utc> {
+        let ts = Self::get_synced_time_secs() as i64;
+        DateTime::from_timestamp(ts, 0).unwrap_or_else(Utc::now)
+    }
+    
+    /// Get NTP-corrected time in seconds since UNIX Epoch
+    pub fn get_synced_time_secs() -> u64 {
         let sys_time = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
@@ -50,7 +56,7 @@ impl TimeKeeper {
         let offset = TIME_OFFSET.load(Ordering::SeqCst);
         let corrected_ts = sys_time + offset;
         
-        DateTime::from_timestamp(corrected_ts, 0).unwrap_or_else(Utc::now)
+        corrected_ts as u64
     }
 
     fn get_ntp_time() -> Result<i64, String> {

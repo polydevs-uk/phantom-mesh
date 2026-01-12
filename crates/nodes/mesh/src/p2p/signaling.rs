@@ -143,8 +143,17 @@ impl SignalingManager {
                     })) => {
                         println!("[Signaling] Received Msg from {}: {} bytes", peer_id, message.data.len());
                         if let Ok(envelope) = bincode::deserialize::<SignalEnvelope>(&message.data) {
+                            println!("[Signaling] Valid Instruction (Orbit) received from {}", peer_id);
                             let _ = self.signal_output_tx.send((peer_id.to_string(), envelope)).await;
+                        } else {
+                            println!("[Signaling] Warning: Received malformed/encrypted blob from {}", peer_id);
                         }
+                    },
+                    SwarmEvent::Behaviour(MyBehaviourEvent::Gossipsub(gossipsub::Event::Subscribed { peer_id, topic })) => {
+                        println!("[Signaling] Peer {} Subscribed to Channel (Orbit Established): {:?}", peer_id, topic);
+                    },
+                    SwarmEvent::Behaviour(MyBehaviourEvent::Gossipsub(gossipsub::Event::Unsubscribed { peer_id, topic })) => {
+                        println!("[Signaling] Peer {} Left Channel: {:?}", peer_id, topic);
                     },
                     // ...
                     SwarmEvent::NewListenAddr { address, .. } => {

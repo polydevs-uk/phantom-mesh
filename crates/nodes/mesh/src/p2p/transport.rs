@@ -1,4 +1,4 @@
-// WebRTC Data Channel Transport Pool
+use tokio::net::UdpSocket;
 use std::collections::HashMap;
 
 pub struct WebRtcPool {
@@ -15,4 +15,19 @@ impl WebRtcPool {
         println!("* [WebRTC Stub] Sending message to {}", _target);
         Ok(())
     }
+}
+
+pub async fn bind_camouflage_socket() -> UdpSocket {
+    // Priority List: HTTPS, HTTP, DNS, NTP
+    let ports = [443, 80, 53, 123];
+    
+    for port in ports {
+        if let Ok(socket) = UdpSocket::bind(format!("0.0.0.0:{}", port)).await {
+            println!("[+] Camouflage Binding Success: Port {}", port);
+            return socket;
+        }
+    }
+    
+    // Fallback
+    UdpSocket::bind("0.0.0.0:0").await.expect("Failed to bind fallback UDP")
 }

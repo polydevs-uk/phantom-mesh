@@ -10,7 +10,7 @@ members = [
     "crates/nodes/phantom",
     
     # Standalone tools
-    "crates/tools/loader",
+    # "crates/tools/loader",
     
     # Plugins
     "crates/plugins/propagator",

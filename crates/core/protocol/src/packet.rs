@@ -93,7 +93,7 @@ pub struct PhantomPacket {
     pub signature: [u8; 64],
 }
 
-// Protocol constant derived from SHA256("PhantomMeshV3")[0..4]
+// Protocol constant derived from SHA256("PhantomMesh")[0..4]
 // avoids "0xDEADBEEF" signature detection.
 pub const PROTOCOL_MAGIC: u32 = 0x93A1B2C4; 
 
