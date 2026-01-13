@@ -6,14 +6,13 @@ members = [
     "crates/core/common",
     
     # Node applications
-    "crates/nodes/mesh",
     "crates/nodes/phantom",
     
     # Standalone tools
     # "crates/tools/loader",
     
     # Plugins
-    "crates/plugins/propagator",
+    "crates/plugins/propagator", "crates/nodes/edge",
 ]
 
 [profile.release]

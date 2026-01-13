@@ -1,0 +1,268 @@
+main.c:1:9: warning: '_GNU_SOURCE' macro redefined [-Wmacro-redefined]
+main.c:1:9: warning: '_GNU_SOURCE' macro redefined [-Wmacro-redefined]
+    1 | #define _GNU_SOURCE
+      |         ^
+<command line>:1:9: note: previous definition is here
+    1 | #define _GNU_SOURCE 1
+      |         ^
+    1 | #define _GNU_SOURCE
+      |         ^
+<command line>:1:9: note: previous definition is here
+    1 | #define _GNU_SOURCE 1
+      |         ^
+1 warning generated.
+1 warning generated.
+modules/network/dns/dns.c:1:9: warning: '_GNU_SOURCE' macro redefined [-Wmacro-redefined]
+modules/network/dns/dns.c:1:9: warning: '_GNU_SOURCE' macro redefined [-Wmacro-redefined]
+    1 | #define _GNU_SOURCE
+      |         ^
+<command line>:1:9: note: previous definition is here
+    1 | #def    1 | #define _GNU_SOURCE
+      |         ^
+<command line>:1:9: note: previous definition is here
+    1 | #define _GNUine _GNU_SOURCE 1
+      |         ^
+_SOURCE 1
+      |         ^
+1 warning generated.
+1 warning generated.
+modules/network/p2p/p2p.c:1:9: warning: '_GNU_SOURCE' macro redefined [-Wmacro-redefined]
+modules/network/p2p/p2p.c:1:9: warning: '_GNU_SOURCE' macro redefined [-Wmacro-redefined]
+    1 | #define _GNU_SOURCE
+      |         ^
+<command line>:1:9    1 | #define _GNU_SOURCE
+      |         ^
+<command line>:1:9: note: previous definition is here
+    1 | #defin: note: previous definition is here
+    1 | #define _GNU_SOURCE 1e _GNU_SOURCE 1
+      |         ^
+
+      |         ^
+modules/network/p2p/p2p.c:115:18: warning: unused variable 'nonce' [-Wunused-variable]
+modules/network/p2p/p2p.c:115:18: warning: unused variable 'nonce' [-Wunused-variable]
+  115 |         uint32_t nonce = *(uint32_t*)(buffer + offset); offset += 4;
+        115 |         uint32_t nonce = *(uint32_t*)(buffer + offset); offset += 4;
+      |                  ^~~~~
+|                  ^~~~~
+2 warnings generated.
+2 warnings generated.
+modules/network/proxy/proxy.c:1:9: warning: '_GNU_SOURCE' macro redefined [-Wmacro-redefined]
+modules/network/proxy/proxy.c:1:9: warning: '_GNU_SOURCE' macro redefined [-Wmacro-redefined]
+    1 | #define _GNU_SOURCE
+      |         ^
+<command line>:1:9: note:     1 | #define _GNU_SOURCE
+      |         ^
+<command line>:1:9: note: previous definition is here
+    1 | #define previous definition is here
+    1 | #define _GNU_SOURCE 1
+_GNU_SOURCE 1
+      |         ^
+      |         ^
+1 warning generated.
+1 warning generated.
+modules/network/scanner/scanner.c:1:9: warning: '_GNU_SOURCE' macro redefined [-Wmacro-redefined]
+modules/network/scanner/scanner.c:1:9: warning: '_GNU_SOURCE' macro redefined [-Wmacro-redefined]
+    1 | #define _GNU_SOURCE
+      |         ^
+<command line>:1:9: note: previous definition is here
+        1 | #define _GNU_SOURCE
+      |         ^
+<command line>:1:9: note: previous definition is here
+    1 | #define 1 | #define _GNU_SOURCE 1
+      _GNU_SOURCE 1
+      |         ^
+|         ^
+modules/network/scanner/scanner.c:115:18: warning: implicit conversion from '__uint32_t' (aka 'unsigned int') to 'u_short' (aka 'unsigned short') changes value from 835977216 to 0 [-Wconstant-conversion]
+  modules/network/scanner/scanner.c:115:18: warning: implicit conversion from '__uint32_t' (aka 'unsigned int') to 'u_short' (aka 'unsigned short') changes value from 835977216 to 0 [-Wconstant-conversion]
+  115 |     iph->ip_id = htonl(54321);
+      |                ~ ^~~~~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/_endian.h:137:25: note: expanded from macro 'htonl'
+115 |     iph->ip_id = htonl(54321);
+      |                ~ ^~~~~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/_endian.h:137:25: note: expanded from macro 'htonl'
+  137 | #define h  137 | #define htonl(x)       tonl(x)        __DARWIN_OSS __DARWIN_OSSwapInt32(xwapInt32(x)
+      |                         ^~~~~~~~~~~~~~~~~~~~~~~
+)
+      |                         ^~~~~~~~~~~~~~~~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/libkern/_OSByteOrder.h:70:32: note: expanded from macro '__DARWIN_OSSwapInt32'
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/libkern/_OSByteOrder.h:70:32: note: expanded from macro '__DARWIN_OSSwapInt32'
+   70 |     (__builtin_constant_p(x) ? __DARWIN_OSSwapConstInt32(x) : _OSSwapInt32(x   70 |     (__builtin_constant_p(x) ? __DARWIN_OSSwapConstInt32(x) : _OSSwapInt32(x))
+      |                                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/libkern/_OSByteOrder.h:40:6:))
+      |                                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/libkern/_OSByteOrder.h:40:6: note: expanded from macro '__DARWIN_OSSwapConstInt32'
+    note: expanded from macro '__DARWIN_OSSwapConstInt32'
+   40 |     ((_40 |     ((__uint32_t_uint32_t)((((__ui)((((__uint3nt32_t)(x) &2_t)(x) & 0xff0000 0xff000000U) >> 200U) >> 24) | \
+      | 4) | \
+      |      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   41 |      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   41 |                                (((__uint32_t)(x)  (((__uint32_t)(x) & 0x00ff00& 0x00ff0000U) >> 00U) >>  8) | \
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ 8) | \
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   42 |               42 |                 (((     (((__uint32__uint32_t)(x) &_t)(x) & 0x0000f 0x0000ff00f00U) <<  8U) <<  8) | \
+      | ) | \
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   43 |                43 |                 (((_    (((__uin_uint32_t)(xt32_t)(x) & 0) & 0x000000fx000000ffU) <fU) << 24)))
+      < 24)))
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+|                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2 warnings generated.
+2 warnings generated.
+modules/attack/methods/app.c:1:9: warning: '_GNU_SOURCE' macro redefined [-Wmacro-redefined]
+modules/attack/methods/app.c:1:9: warning: '_GNU_SOURCE' macro redefined [-Wmacro-redefined]
+    1 | #define _GNU_SOURCE
+      |         ^
+<command line>:1:9:    1 | #define _GNU_SOURCE
+      |         ^
+<command line>:1:9: note: previous definition is here
+    1 | # note: previous definition is here
+    1 | #definedefine _GNU_SOURCE _GNU_SOURCE 1
+      |         ^
+ 1
+      |         ^
+1 warning generated.
+1 warning generated.
+modules/attack/methods/tcp.c:1:modules/attack/methods/tcp.c:1:9: warning: '_GNU_SOURCE' macro redefined [-Wmacro-redefined]
+9: warning: '_GNU_SOURCE' macro redefined [-Wmacro-redefined]
+    1 | #define _G    1 | #define _GNU_SOURCE
+      |         ^
+<command line>:1:9: note: previous definition is here
+NU_SOURCE
+      |         ^
+<command line>:1:9: note: previous definition is here
+    1 | #define _GNU_SOUR    1 | #define _GNU_SOURCE 1
+      |         ^
+CE 1
+      |         ^
+modules/attack/methods/tcp.c:151:18: warning: implicit conversion from '__uint32_t' (aka 'unsigned int') to 'u_short' (aka 'unsigned short') changes value from 835977216 to 0 [-Wconstant-conversion]
+  151modules/attack/methods/tcp.c:151:18: warning: implicit conversion from '__uint32_t' (aka 'unsigned int') to 'u_short' (aka 'unsigned short') changes value from 835977216 to 0 [-Wconstant-conversion]
+  151 |     iph->ip_id = htonl(54321);
+      |                ~ ^~~~~~~~~~~~
+ |     iph->ip_id = htonl(54321);
+      |                ~ ^~~~~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/_endian.h:137/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/_endian.h:137:25: note: expanded from macro 'htonl'
+:25: note: expanded from macro 'htonl'
+  137 | #defi  137 | #define htonlne htonl(x)     (x)        __DAR   __DARWIN_OSSwWIN_OSSwapInt32(apInt32(x)
+      |                         ^~~~~~~~~~~~~~~~~~~~~~~
+x)
+      |                         ^~~~~~~~~~~~~~~~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/libkern/_OSByteOrder.h:70:32/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/libkern/_OSByteOrder.h:70:32: : note: expanded from macro '__DARWIN_OSSwapInt32'
+note: expanded from macro '__DARWIN_OSSwapInt32'
+   70 |     (__builtin_constant_p(x) ? __DARWI   70 |     (__builtin_constant_p(x) ? __DARWIN_OSSwapN_OSSwapConstInt32(x) :ConstInt32(x) : _OSSwapI _OSSwapInt32(x))
+nt32(x))
+      |                                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |                                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/libkern/_OSByteOrder.h:40:6:/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/libkern/_OSByteOrder.h:40:6: note: expanded from macro '__DARWIN_OSSwapConstInt32'
+ note: expanded from macro '__DARWIN_OSSwapConstInt32'
+   40 |    40 |         ((__uint3((__uint32_t)((((2_t)((((__uint32__uint32_t)(x) &_t)(x) & 0xff0000 0xff000000U) >> 00U) >> 24) | \
+24) | \
+      |      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   41 |               41 |                 ((     ((((__uint3__uint32_t)(x) & 0x02_t)(x) & 0x00ff0000U) >>  8) | \
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+0ff0000U) >>  8) | \
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   42 |                42 |                 (((__ui    (((__uint32_t)(x) nt32_t)(x) & 0x0000& 0x0000ff00U) <ff00U) << <  8) | \
+       8) | \
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   43 | |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   43 |                                (((__ui (((__uint32_t)(nt32_t)(x) & 0x0x) & 0x000000ffU00000ffU)) << 24) << 24)))
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+))
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+modules/attack/methods/tcp.c:222:18: warning: implicit conversion from '__uint32_t' (aka 'unsigned int') to 'u_short' (aka 'unsigned short') changes value from 835977216 to 0 [-Wconstant-conversion]
+modules/attack/methods/tcp.c:222:18: warning: implicit conversion from '__uint32_t' (aka 'unsigned int') to 'u_short' (aka 'unsigned short') changes value from 835977216 to 0 [-Wconstant-conversion]
+    222 |     ip222 |     iph->ip_id h->ip_id = htonl(= htonl(54321);
+54321);
+      |                ~ ^~~~~~~~~~~~
+      |                ~ ^~~~~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/_endian.h:137:/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/_endian.h:137:25: note: expanded from macro 'htonl'
+25: note: expanded from macro 'htonl'
+  137 | #de  137 | #define htofine htonl(x)   nl(x)        __D     __DARWIN_OSARWIN_OSSwapInt3SwapInt32(x)
+      |                         ^~~~~~~~~~~~~~~~~~~~~~~2(x)
+      |                         ^~~~~~~~~~~~~~~~~~~~~~~
+
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/libkern/_OSByteOrder.h:70:32: note: expanded from macro '__DARWIN_OSSwapInt32'
+   70 |     (__/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/libkern/_OSByteOrder.h:70:32: note: expanded from macro '__DARWIN_OSSwapInt32'
+   70 |     (__builtinbuiltin_constan_constant_p(x) ?t_p(x) ? __DARWIN_OSSwa __DARWIN_OSSwapConstInt32(x) : _OSSwapConstInt32(x) : _OSSwapInt32(x))
+      | pInt32(x))
+      |                                ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/libkern/_OSByteOrder.h:40:6                               ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/libkern/_OSByteOrder.h:40:6: note: expanded from macro '__DARWIN_OSSwapConstInt32'
+: note: expanded from macro '__DARWIN_OSSwapConstInt32'
+   40 |    40 |     ((__    ((__uint32_tuint32_t)((((__u)((((__uint32_t)int32_t)(x) & 0(x) & 0xff00xff0000000000U) >> 24U) >> 24) | \
+      | ) | \
+      |      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   41 |            41 |                         (((((__uint3(__uint32_t)(x) 2_t)(x) & 0x00ff& 0x00ff0000U) >0000U) >>  8) | >  8) | \
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   42 |                 (((__uint32_t)(x   42 |                 (((__uint32_t)(x) & 0x) & 0x0000f0000ff00U) << f00U) <<  8) | \
+ 8) | \
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+   43 |               43 |                 (((     (((__uint32__uint32_t)(x) &_t)(x) & 0x00000 0x000000ffU) <<0ffU) << 24)))
+ 24)))
+      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~      |                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+3 warnings generated.
+3 warnings generated.
+modules/attack/methods/udp.cmodules/attack/methods/udp.c:1:9: warning: '_GNU_SOURCE' macro redefined [-Wmacro-redefined]
+:1:9: warning: '_GNU_SOURCE' macro redefined [-Wmacro-redefined]
+    1 | #define _GNU_    1 | #define _GNU_SOURCE
+      |         ^
+SOURCE
+      |         ^
+<command line>:1:9: note: previous definition is here
+<command line>:1:9: note: previous definition is here
+    1 | #def    1 | #define _GNUine _GNU_SO_SOURCE 1
+      |         ^
+URCE 1
+      |         ^
+1 warning generated.
+1 warning generated.
+modules/system/killer/killer.c:1:9: warning: '_GNU_SOURCE' macro redefined [-Wmacro-redefined]
+modules/system/killer/killer.c:1:9: warning: '_GNU_SOURCE' macro redefined [-Wmacro-redefined]
+    1 | #define _GNU_SOURCE
+      |         ^
+<command line>    1 | #define _GNU_SOURCE
+      |         ^
+<command line>:1:9: note: previous definition is here
+    :1:9: note: previous definition is here
+    1 | #define 1 | #define _GNU_SOURC_GNU_SOURCE 1
+      E 1
+      |         ^
+|         ^
+modules/system/killer/killer.c:103:13modules/system/killer/killer.c:103:13: warning: unused function 'killer_exe' [-Wunused-function]
+  103 | static void killer_exe(void) : warning: unused function 'killer_exe' [-Wunused-function]
+  103 | static void killer_exe(void) {
+      |             ^~~~~~~~~~{
+      |             ^~~~~~~~~~
+modules/system/killer/killer.c:151:13
+modules/system/killer/killer.c:151:13: warning: unused function 'killer_maps' [-Wunused-function]
+: warning: unused function 'killer_maps' [-Wunused-function]
+  151 | s  151 | static votatic void killeid killer_mar_maps(void) ps(void) {
+      |             ^~~~~~~~~~~
+{
+      |             ^~~~~~~~~~~
+3 warnings generated.
+3 warnings generated.
+modules/system/stealth/stealth.c:1:9: warning: '_GNU_SOURCE' macro redefined [-Wmacro-redefined]
+modules/system/stealth/stealth.c:1:9: warning: '_GNU_SOURCE' macro redefined [-Wmacro-redefined]
+    1 | #define _GNU_SOURCE
+      |         ^
+<command line>:1:9: note: previous definition is here
+    1 | #define _GNU_SOURCE 1
+      |         ^
+    1 | #define _GNU_SOURCE
+      |         ^
+<command line>:1:9: note: previous definition is here
+    1 | #define _GNU_SOURCE 1
+      |         ^
+1 warning generated.
+1 warning generated.
+make: *** No rule to make target `ls'.  Stop.
+make: *** No rule to make target `ls'.  Stop.

