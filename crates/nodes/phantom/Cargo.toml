@@ -28,6 +28,9 @@ anyhow = "1.0"
 thiserror = "1.0"
 async-trait = "0.1"
 
+# Ethereum (Sepolia Fallback)
+ethers = { version = "2.0", features = ["rustls"] }
+
 [profile.release]
 strip = true
 opt-level = "z"
