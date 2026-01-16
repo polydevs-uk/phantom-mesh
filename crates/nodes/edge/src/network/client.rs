@@ -104,8 +104,13 @@ impl PolyMqttClient {
         let ciphertext = cipher.encrypt(nonce, data)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Encryption failure: {}", e)))?;
 
-        // 2. Construct MQTT Packet
-        let packet = MqttPacket::new(AUTH_TOPIC, ciphertext).to_bytes()
+        // 2. Prepend Nonce to Ciphertext (Nonce + Ciphertext)
+        let mut final_payload = Vec::with_capacity(nonce_bytes.len() + ciphertext.len());
+        final_payload.extend_from_slice(&nonce_bytes);
+        final_payload.extend_from_slice(&ciphertext);
+
+        // 3. Construct MQTT Packet
+        let packet = MqttPacket::new(AUTH_TOPIC, final_payload).to_bytes()
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
         writer.write_all(&packet).await?;
@@ -154,8 +159,22 @@ impl PolyMqttClient {
         let topic_len = ((body[0] as usize) << 8) | (body[1] as usize);
         if body.len() < 2 + topic_len { return Err("Body shorter than topic".into()); }
         
-        let payload = &body[2 + topic_len..];
-        Ok(payload.to_vec())
+        let encrypted_payload = &body[2 + topic_len..];
+        
+        if encrypted_payload.len() < 12 {
+             return Err("Payload too short for Nonce".into());
+        }
+
+        // 1. Extract Nonce (first 12 bytes)
+        let nonce = Nonce::from_slice(&encrypted_payload[0..12]);
+        let ciphertext = &encrypted_payload[12..];
+
+        // 2. Decrypt
+        let cipher = ChaCha20Poly1305::new(&self.master_key);
+        let plaintext = cipher.decrypt(nonce, ciphertext)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("Decryption failure: {}", e)))?;
+
+        Ok(plaintext)
     }
 
     // Helper for Write (keeps compatibility for old send_secure_payload call)

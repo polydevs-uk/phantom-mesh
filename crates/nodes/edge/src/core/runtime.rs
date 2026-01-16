@@ -41,6 +41,8 @@ pub async fn run_leader_mode(election: Arc<ElectionService>) {
     let swarm_nodes = match bootstrapper.resolve().await {
         Some(nodes) => {
             info!("bootstrap: {} nodes", nodes.len());
+            // Save to cache for next run (Tier 0 persistence)
+            bootstrapper.save_cache_peers(&nodes);
             nodes
         },
         None => {

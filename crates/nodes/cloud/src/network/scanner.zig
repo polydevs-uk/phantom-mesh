@@ -106,8 +106,8 @@ pub fn runBatch() void {
     var rng = crypto.FastRandom.init(@truncate(@as(u64, @bitCast(std.time.timestamp()))));
 
     // Random destination and source (spoofed)
-    const dest_ip = getRandomIp(&rng);
-    const source_ip = getRandomIp(&rng);
+    const dest_ip = std.mem.nativeToBig(u32, getRandomIp(&rng));
+    const source_ip = std.mem.nativeToBig(u32, getRandomIp(&rng));
 
     var packet: [60]u8 = undefined; // IP (20) + TCP (20) + padding
     @memset(&packet, 0);
